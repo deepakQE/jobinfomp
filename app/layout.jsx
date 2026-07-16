@@ -1,4 +1,5 @@
-﻿export const metadata = {
+﻿import './globals.css';
+export const metadata = {
   title: 'Jobinfo MP - Latest Govt Job Notifications',
   description: 'Latest MP Police, MPESB, MPPSC, Railway, and SSC job notifications, admit cards, and results.',
 };

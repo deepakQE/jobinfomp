@@ -5,9 +5,26 @@ import { notFound } from 'next/navigation';
 
 export const revalidate = 300;
 
+export async function generateMetadata({ params }) {
+  const { slug } = await params;
+  const { data: post } = await supabase
+    .from('job_posts')
+    .select('title, short_summary')
+    .eq('slug', slug)
+    .eq('is_published', true)
+    .single();
+
+  if (!post) return { title: 'Job not found | Jobinfo MP' };
+
+  return {
+    title: `${post.title} | Jobinfo MP`,
+    description: post.short_summary || 'Latest MP government job notification, eligibility, vacancy, and apply online details.',
+    alternates: { canonical: `https://jobinfomp.in/job/${slug}` },
+  };
+}
+
 export default async function JobPage({ params }) {
   const { slug } = await params;
-
   const { data: post } = await supabase
     .from('job_posts')
     .select('*')
@@ -18,7 +35,7 @@ export default async function JobPage({ params }) {
   if (!post) return notFound();
 
   return (
-    <main className="max-w-md mx-auto px-3 py-4">
+    <main className="max-w-2xl mx-auto px-4 py-6">
       <Header />
       <h1 className="text-lg font-semibold text-gray-900 mb-2">{post.title}</h1>
       {post.short_summary && <p className="text-sm text-gray-700 mb-4">{post.short_summary}</p>}
@@ -101,6 +118,28 @@ export default async function JobPage({ params }) {
       </div>
 
       <Footer />
+
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            '@context': 'https://schema.org/',
+            '@type': 'JobPosting',
+            title: post.title,
+            description: post.eligibility || post.short_summary,
+            datePosted: post.created_at,
+            validThrough: post.important_dates?.find((d) =>
+              d.label.toLowerCase().includes('last date')
+            )?.date,
+            employmentType: 'FULL_TIME',
+            hiringOrganization: { '@type': 'Organization', name: post.category?.toUpperCase() },
+            jobLocation: {
+              '@type': 'Place',
+              address: { '@type': 'PostalAddress', addressRegion: 'Madhya Pradesh', addressCountry: 'IN' },
+            },
+          }),
+        }}
+      />
     </main>
   );
 }

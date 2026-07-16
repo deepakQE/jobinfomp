@@ -18,7 +18,7 @@ export default async function CategoryPage({ params }) {
     .limit(50);
 
   return (
-    <main className="max-w-md mx-auto px-3 py-4">
+    <main className="max-w-2xl mx-auto px-4 py-6">
       <Header />
       <CategoryTabs active={category} />
       <div className="border border-gray-200 divide-y divide-gray-200 rounded">
