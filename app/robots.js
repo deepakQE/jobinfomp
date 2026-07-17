@@ -1,6 +1,6 @@
 export default function robots() {
   return {
     rules: { userAgent: '*', allow: '/' },
-    sitemap: 'https://jobinfomp.in/sitemap.xml',
+    sitemap: 'https://marvelous-peony-6a778e.netlify.app/sitemap.xml',
   };
 }

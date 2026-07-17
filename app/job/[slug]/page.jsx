@@ -22,7 +22,7 @@ export async function generateMetadata({ params }) {
     title: `${post.title} | Jobinfo MP`,
     description: post.short_summary || 'Latest MP government job notification, eligibility, vacancy, and apply online details.',
     // Fixed domain to match your new registration
-    alternates: { canonical: `https://mpjob.app/job/${slug}` }, 
+    alternates: { canonical: `https://marvelous-peony-6a778e.netlify.app/job/${slug}` }, 
   };
 }
 
