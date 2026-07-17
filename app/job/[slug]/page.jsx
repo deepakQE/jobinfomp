@@ -1,9 +1,11 @@
+// app/job/[slug]/page.jsx
 import { supabase } from '@/lib/supabase';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { notFound } from 'next/navigation';
 
-export const revalidate = 300;
+// Keep this commented out while testing locally so you aren't fighting the cache
+// export const revalidate = 300; 
 
 export async function generateMetadata({ params }) {
   const { slug } = await params;
@@ -19,7 +21,8 @@ export async function generateMetadata({ params }) {
   return {
     title: `${post.title} | Jobinfo MP`,
     description: post.short_summary || 'Latest MP government job notification, eligibility, vacancy, and apply online details.',
-    alternates: { canonical: `https://jobinfomp.in/job/${slug}` },
+    // Fixed domain to match your new registration
+    alternates: { canonical: `https://mpjob.app/job/${slug}` }, 
   };
 }
 
@@ -34,85 +37,121 @@ export default async function JobPage({ params }) {
 
   if (!post) return notFound();
 
+  // Strict validation to prevent fatal .map() crashes if data is missing or malformed
+  const safeArray = (data) => Array.isArray(data) ? data : [];
+  
+  const dates = safeArray(post.important_dates);
+  const fees = safeArray(post.application_fee);
+  const vacancies = safeArray(post.vacancy_details);
+
   return (
     <main className="max-w-2xl mx-auto px-4 py-6">
       <Header />
-      <h1 className="text-lg font-semibold text-gray-900 mb-2">{post.title}</h1>
-      {post.short_summary && <p className="text-sm text-gray-700 mb-4">{post.short_summary}</p>}
+      
+      <div className="mb-8">
+        <h1 className="text-2xl font-black text-gray-900 mb-3 leading-tight">{post.title}</h1>
+        {post.short_summary && (
+          <p className="text-sm text-gray-700 bg-blue-50/50 p-4 rounded-lg border border-blue-100 leading-relaxed">
+            {post.short_summary}
+          </p>
+        )}
+      </div>
 
-      {post.important_dates && (
-        <section className="mb-4">
-          <h2 className="text-sm font-medium mb-1">Important dates</h2>
-          <table className="w-full text-xs border border-gray-200">
-            <tbody>
-              {post.important_dates.map((row, i) => (
-                <tr key={i} className="border-b border-gray-100 last:border-0">
-                  <td className="p-2 text-gray-600">{row.label}</td>
-                  <td className="p-2 text-right font-medium text-gray-900">{row.date}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {dates.length > 0 && (
+        <section className="mb-8">
+          <h2 className="text-sm font-extrabold text-gray-800 mb-3 uppercase tracking-wider flex items-center gap-2">
+             <span className="w-2 h-2 bg-blue-600 rounded-full"></span>
+             Important Dates
+          </h2>
+          <div className="overflow-hidden border border-gray-200 rounded-lg shadow-sm">
+            <table className="w-full text-sm text-left">
+              <tbody className="divide-y divide-gray-200">
+                {dates.map((row, i) => (
+                  <tr key={i} className="bg-white hover:bg-gray-50 transition-colors">
+                    <td className="p-3 text-gray-600">{row.label}</td>
+                    <td className="p-3 text-right text-gray-900 font-semibold">{row.date}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </section>
       )}
 
-      {post.application_fee && (
-        <section className="mb-4">
-          <h2 className="text-sm font-medium mb-1">Application fee</h2>
-          <table className="w-full text-xs border border-gray-200">
-            <tbody>
-              {post.application_fee.map((row, i) => (
-                <tr key={i} className="border-b border-gray-100 last:border-0">
-                  <td className="p-2 text-gray-600">{row.category}</td>
-                  <td className="p-2 text-right font-medium text-gray-900">{row.fee}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {fees.length > 0 && (
+        <section className="mb-8">
+          <h2 className="text-sm font-extrabold text-gray-800 mb-3 uppercase tracking-wider flex items-center gap-2">
+             <span className="w-2 h-2 bg-green-600 rounded-full"></span>
+             Application Fee
+          </h2>
+          <div className="overflow-hidden border border-gray-200 rounded-lg shadow-sm">
+            <table className="w-full text-sm text-left">
+              <tbody className="divide-y divide-gray-200">
+                {fees.map((row, i) => (
+                  <tr key={i} className="bg-white hover:bg-gray-50 transition-colors">
+                    <td className="p-3 text-gray-600">{row.category}</td>
+                    <td className="p-3 text-right text-gray-900 font-semibold">{row.fee}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </section>
       )}
 
       {post.eligibility && (
-        <section className="mb-4">
-          <h2 className="text-sm font-medium mb-1">Eligibility</h2>
-          <p className="text-sm text-gray-700 whitespace-pre-line">{post.eligibility}</p>
+        <section className="mb-8">
+          <h2 className="text-sm font-extrabold text-gray-800 mb-3 uppercase tracking-wider">Eligibility</h2>
+          <div className="text-sm text-gray-700 whitespace-pre-line bg-white p-4 rounded-lg border border-gray-200 shadow-sm leading-relaxed">
+            {post.eligibility}
+          </div>
         </section>
       )}
 
-      {post.vacancy_details && (
-        <section className="mb-4">
-          <h2 className="text-sm font-medium mb-1">Vacancy breakdown</h2>
-          <table className="w-full text-xs border border-gray-200">
-            <tbody>
-              {post.vacancy_details.map((row, i) => (
-                <tr key={i} className="border-b border-gray-100 last:border-0">
-                  <td className="p-2 text-gray-600">{row.post_name}</td>
-                  <td className="p-2 text-right font-medium text-gray-900">{row.count}</td>
+      {vacancies.length > 0 && (
+        <section className="mb-8">
+          <h2 className="text-sm font-extrabold text-gray-800 mb-3 uppercase tracking-wider">Vacancy Breakdown</h2>
+          <div className="overflow-hidden border border-gray-200 rounded-lg shadow-sm">
+            <table className="w-full text-sm text-left">
+              <thead className="bg-gray-50 border-b border-gray-200 text-gray-500 font-semibold uppercase text-xs tracking-wider">
+                <tr>
+                  <th className="p-3">Post Name</th>
+                  <th className="p-3 text-right">Count</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {vacancies.map((row, i) => (
+                  <tr key={i} className="bg-white hover:bg-gray-50 transition-colors">
+                    <td className="p-3 text-gray-700">{row.post_name}</td>
+                    <td className="p-3 text-right text-gray-900 font-bold">{row.count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </section>
       )}
 
       {post.how_to_apply && (
-        <section className="mb-4">
-          <h2 className="text-sm font-medium mb-1">How to apply</h2>
-          <p className="text-sm text-gray-700 whitespace-pre-line">{post.how_to_apply}</p>
+        <section className="mb-8">
+          <h2 className="text-sm font-extrabold text-gray-800 mb-3 uppercase tracking-wider">How to Apply</h2>
+          <div className="text-sm text-gray-700 whitespace-pre-line bg-white p-4 rounded-lg border border-gray-200 shadow-sm leading-relaxed">
+            {post.how_to_apply}
+          </div>
         </section>
       )}
 
-      <div className="flex flex-col gap-2 mb-4">
+      <div className="flex flex-col gap-3 mb-8">
         {post.official_link && (
           <a href={post.official_link} target="_blank" rel="noopener noreferrer"
-             className="text-sm text-center bg-blue-600 text-white rounded py-2">
-            Apply online / official website
+             className="text-sm text-center font-bold tracking-wide bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-3.5 shadow-sm transition-colors">
+            Apply Online / Official Website
           </a>
         )}
         {post.notification_pdf_link && (
           <a href={post.notification_pdf_link} target="_blank" rel="noopener noreferrer"
-             className="text-sm text-center border border-gray-300 rounded py-2 text-gray-700">
-            Download notification PDF
+             className="text-sm text-center font-semibold tracking-wide border-2 border-gray-200 hover:border-gray-300 bg-white hover:bg-gray-50 rounded-lg py-3 text-gray-700 transition-all">
+            Download Notification PDF
           </a>
         )}
       </div>
@@ -126,13 +165,13 @@ export default async function JobPage({ params }) {
             '@context': 'https://schema.org/',
             '@type': 'JobPosting',
             title: post.title,
-            description: post.eligibility || post.short_summary,
+            description: post.eligibility || post.short_summary || post.title,
             datePosted: post.created_at,
-            validThrough: post.important_dates?.find((d) =>
+            validThrough: dates.find((d) =>
               d.label.toLowerCase().includes('last date')
-            )?.date,
+            )?.date || undefined,
             employmentType: 'FULL_TIME',
-            hiringOrganization: { '@type': 'Organization', name: post.category?.toUpperCase() },
+            hiringOrganization: { '@type': 'Organization', name: post.category?.toUpperCase() || 'Government of Madhya Pradesh' },
             jobLocation: {
               '@type': 'Place',
               address: { '@type': 'PostalAddress', addressRegion: 'Madhya Pradesh', addressCountry: 'IN' },
