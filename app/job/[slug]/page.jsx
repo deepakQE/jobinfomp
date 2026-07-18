@@ -5,6 +5,20 @@ import { notFound } from 'next/navigation';
 
 export const revalidate = 300; 
 
+// Forces Next.js to pre-build all active jobs into free static HTML pages
+export async function generateStaticParams() {
+  const { data: posts } = await supabase
+    .from('job_posts')
+    .select('slug')
+    .eq('is_published', true);
+
+  if (!posts) return [];
+
+  return posts.map((post) => ({
+    slug: post.slug,
+  }));
+}
+
 export async function generateMetadata({ params }) {
   const { slug } = await params;
   const { data: post } = await supabase
