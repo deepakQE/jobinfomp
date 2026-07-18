@@ -1,10 +1,10 @@
-﻿// app/page.jsx
-import { supabase } from '@/lib/supabase';
+﻿import { supabase } from '@/lib/supabase';
 import JobCard from '@/components/JobCard';
 import CategoryTabs from '@/components/CategoryTabs';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 
+// Cache page for 5 minutes, but re-fetches dynamic changes smoothly
 export const revalidate = 300;
 
 export default async function Home() {
@@ -16,10 +16,10 @@ export default async function Home() {
     .order('created_at', { ascending: false })
     .limit(100); 
 
-  // 2. Structural config mapping
+  // 2. Structural config mapping matching exact database post_type enum values
   const sectionsConfig = [
-    { type: 'notification', label: 'Latest Notifications', limit: 30 },
-    { type: 'upcoming', label: 'Upcoming (Expected)', limit: 10 },
+    { type: 'latest-job', label: 'Latest Notifications', limit: 30 },
+    { type: 'upcoming-job', label: 'Upcoming (Expected)', limit: 10 },
     { type: 'admit-card', label: 'Admit Cards', limit: 15 },
     { type: 'result', label: 'Results', limit: 15 },
     { type: 'answer-key', label: 'Answer Keys', limit: 10 },
@@ -38,7 +38,7 @@ export default async function Home() {
         if (post.post_type !== section.type) return false;
 
         // Condition B: Filter out expired application notifications automatically
-        if (section.type === 'notification' && post.application_deadline) {
+        if (section.type === 'latest-job' && post.application_deadline) {
           return post.application_deadline >= currentISTDateStr;
         }
 

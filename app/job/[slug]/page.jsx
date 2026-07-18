@@ -1,11 +1,9 @@
-// app/job/[slug]/page.jsx
 import { supabase } from '@/lib/supabase';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { notFound } from 'next/navigation';
 
-// Keep this commented out while testing locally so you aren't fighting the cache
-// export const revalidate = 300; 
+export const revalidate = 300; 
 
 export async function generateMetadata({ params }) {
   const { slug } = await params;
@@ -21,7 +19,6 @@ export async function generateMetadata({ params }) {
   return {
     title: `${post.title} | Jobinfo MP`,
     description: post.short_summary || 'Latest MP government job notification, eligibility, vacancy, and apply online details.',
-    // Fixed domain to match your new registration
     alternates: { canonical: `https://marvelous-peony-6a778e.netlify.app/job/${slug}` }, 
   };
 }
@@ -37,12 +34,18 @@ export default async function JobPage({ params }) {
 
   if (!post) return notFound();
 
-  // Strict validation to prevent fatal .map() crashes if data is missing or malformed
-  const safeArray = (data) => Array.isArray(data) ? data : [];
-  
-  const dates = safeArray(post.important_dates);
-  const fees = safeArray(post.application_fee);
-  const vacancies = safeArray(post.vacancy_details);
+  // Robust JSON parser that handles both raw arrays and stringified JSON
+  const parseJson = (field) => {
+    if (!field) return [];
+    if (typeof field === 'string') {
+      try { return JSON.parse(field); } catch (e) { return []; }
+    }
+    return Array.isArray(field) ? field : [];
+  };
+
+  const dates = parseJson(post.important_dates);
+  const fees = parseJson(post.application_fee);
+  const vacancies = parseJson(post.vacancy_details);
 
   return (
     <main className="max-w-2xl mx-auto px-4 py-6">
