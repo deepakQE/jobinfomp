@@ -1,8 +1,13 @@
 ﻿import './globals.css';
+
 export const metadata = {
   title: 'Jobinfo MP - Latest Govt Job Notifications',
   description: 'Latest MP Police, MPESB, MPPSC, Railway, and SSC job notifications, admit cards, and results.',
+  verification: {
+    google: '3SHWAfPdpGoxmz6I0RADAixxHUEUBAO172yeGoaEHp4',
+  },
 };
+
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
