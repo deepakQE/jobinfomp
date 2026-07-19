@@ -35,7 +35,7 @@ def fetch_latest_job():
     return response.data[0]
 
 def send_telegram_alert(job):
-    job_url = f"https://marvelous-peony-6a778e.netlify.app/job/{job['slug']}"
+    job_url = f"https://jobinfomp.netlify.app/job/{job['slug']}"
     
     raw_date = job.get('application_deadline')
     if raw_date:

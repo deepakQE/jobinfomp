@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabase';
 
 export default async function sitemap() {
-  const baseUrl = 'https://marvelous-peony-6a778e.netlify.app';
+  const baseUrl = 'https://jobinfomp.netlify.app';
 
   const { data: posts } = await supabase
     .from('job_posts')
