@@ -4,7 +4,8 @@ export const metadata = {
   title: 'Jobinfo MP - Latest Govt Job Notifications',
   description: 'Latest MP Police, MPESB, MPPSC, Railway, and SSC job notifications, admit cards, and results.',
   verification: {
-    google: '3SHWAfPdpGoxmz6I0RADAixxHUEUBAO172yeGoaEHp4',
+    google: '6XdbSFySiQCE3JxXZJ9WtM15G3Vl7Ej6XrMJ9Rlge8M',
+    
   },
 };
 

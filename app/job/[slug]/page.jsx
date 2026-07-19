@@ -33,7 +33,7 @@ export async function generateMetadata({ params }) {
   return {
     title: `${post.title} | Jobinfo MP`,
     description: post.short_summary || 'Latest MP government job notification, eligibility, vacancy, and apply online details.',
-    alternates: { canonical: `https://marvelous-peony-6a778e.netlify.app/job/${slug}` }, 
+    alternates: { canonical: `https://jobinfomp.netlify.app/job/${slug}` },
   };
 }
 
