@@ -3,21 +3,8 @@ import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { notFound } from 'next/navigation';
 
-export const revalidate = 300; 
-
-// Forces Next.js to pre-build all active jobs into free static HTML pages
-export async function generateStaticParams() {
-  const { data: posts } = await supabase
-    .from('job_posts')
-    .select('slug')
-    .eq('is_published', true);
-
-  if (!posts) return [];
-
-  return posts.map((post) => ({
-    slug: post.slug,
-  }));
-}
+// FORCE INSTANT LIVE FETCHING - NO STATIC CACHING
+export const dynamic = 'force-dynamic';
 
 export async function generateMetadata({ params }) {
   const { slug } = await params;
