@@ -21,28 +21,39 @@ if not all([TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, SUPABASE_URL, SUPABASE_KEY]):
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def fetch_latest_job():
-    # Only pull jobs that are published AND have NOT been posted to Telegram yet
-    response = supabase.table('job_posts') \
-        .select('*') \
-        .eq('is_published', True) \
-        .eq('telegram_posted', False) \
-        .order('created_at', desc=True) \
-        .limit(1) \
-        .execute()
-    
-    if not response.data:
+    try:
+        # Pull the latest job that is published AND has NOT been posted to Telegram yet
+        response = supabase.table('job_posts') \
+            .select('*') \
+            .eq('is_published', True) \
+            .eq('telegram_posted', False) \
+            .order('created_at', desc=True) \
+            .limit(1) \
+            .execute()
+        
+        if not response.data:
+            return None
+        return response.data[0]
+    except Exception as e:
+        print(f"Database Fetch Error: {str(e)}")
         return None
-    return response.data[0]
 
 def send_telegram_alert(job):
     job_url = f"https://jobinfomp.netlify.app/job/{job['slug']}"
     
+    # PROTECTED DATE PARSING LAYER
     raw_date = job.get('application_deadline')
+    formatted_date = 'Not specified' # Secure default fallback layout
+    
     if raw_date:
-        date_obj = datetime.strptime(raw_date, '%Y-%m-%d')
-        formatted_date = date_obj.strftime('%d %B %Y')
-    else:
-        formatted_date = 'Not specified'
+        try:
+            # Handle if the database passes a full timestamp or string split parameter
+            clean_date = str(raw_date).split('T')[0].strip()
+            date_obj = datetime.strptime(clean_date, '%Y-%m-%d')
+            formatted_date = date_obj.strftime('%d %B %Y')
+        except (ValueError, TypeError):
+            # Fallback instead of crashing if the date format is unexpected
+            formatted_date = str(raw_date)
     
     message = f"""🚨 *New Job Update!* 🚨
 
@@ -64,14 +75,17 @@ def send_telegram_alert(job):
         "disable_web_page_preview": False
     }
 
-    response = requests.post(url, json=payload)
-    
-    if response.status_code == 200:
-        # Tell the database this job is handled so it never posts again
-        supabase.table('job_posts').update({'telegram_posted': True}).eq('slug', job['slug']).execute()
-        print("Success: Anti-spam flag set. Job posted securely.")
-    else:
-        print(f"Error: {response.text}")
+    try:
+        response = requests.post(url, json=payload, timeout=10)
+        
+        if response.status_code == 200:
+            # Tell the database this job is handled so it never posts again
+            supabase.table('job_posts').update({'telegram_posted': True}).eq('slug', job['slug']).execute()
+            print(f"Success: Anti-spam flag set. Job [{job['slug']}] posted securely.")
+        else:
+            print(f"Telegram API Error: {response.text}")
+    except requests.exceptions.RequestException as e:
+        print(f"Network Timeout/Error contacting Telegram: {str(e)}")
 
 if __name__ == "__main__":
     latest_job = fetch_latest_job()

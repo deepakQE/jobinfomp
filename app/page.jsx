@@ -4,11 +4,11 @@ import CategoryTabs from '@/components/CategoryTabs';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 
-// Cache page for 5 minutes, but re-fetches dynamic changes smoothly
-export const revalidate = 300;
+// FORCE NEXT.JS TO FETCH FRESH DATA ON EVERY VISIT INSTEAD OF BUILDING STATIC FILES
+export const dynamic = 'force-dynamic';
 
 export default async function Home() {
-  // 1. Single DB hit pulling the pool along with application_deadline column
+  // 1. Single DB hit pulling the pool along with application_deadline column live on request
   const { data: allPosts, error } = await supabase
     .from('job_posts')
     .select('slug, title, category, post_type, short_summary, application_deadline')
