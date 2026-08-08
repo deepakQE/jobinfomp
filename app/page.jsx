@@ -1,11 +1,10 @@
 ﻿import { supabase } from '@/lib/supabase';
 import JobCard from '@/components/JobCard';
-import CategoryTabs from '@/components/CategoryTabs';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
+import CategoryTabs from '@/components/CategoryTabs';
 
-// FORCE NEXT.JS TO FETCH FRESH DATA ON EVERY VISIT INSTEAD OF BUILDING STATIC FILES
-export const dynamic = 'force-dynamic';
+export const revalidate = 60;
 
 export default async function Home() {
   // 1. Single DB hit pulling the pool along with application_deadline column live on request
@@ -53,43 +52,102 @@ export default async function Home() {
   });
 
   const hasData = renderableSections.some((s) => s.posts.length > 0);
+  const totalNotifications = renderableSections.reduce((sum, s) => sum + s.posts.length, 0);
 
   return (
-    <main className="max-w-2xl mx-auto px-4 py-6">
+    <>
       <Header />
-      <CategoryTabs active="all" />
+      <main className="min-h-screen bg-paper">
+        <CategoryTabs active="all" showLabel={false} />
+        {/* Hero Section - Notice Board Style */}
+        <section className="bg-ink-navy text-hero-text border-b-4 border-gold">
+          <div className="container-editorial py-10 md:py-14">
+            <h1 className="headline-xl text-hero-text mb-3">
+              Government Job Portal
+            </h1>
+            <p className="text-base md:text-lg leading-relaxed text-hero-muted mb-6">
+              Official notifications aggregated in one place. Notifications, admit cards, results, and answer keys.
+            </p>
 
-      {error && (
-        <p className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded mb-4">
-          Failed to load job sections. Please try again.
-        </p>
-      )}
-      
-      {!hasData && !error && (
-        <p className="p-3 text-sm text-gray-500 text-center py-8">
-          No job alerts or updates posted yet.
-        </p>
-      )}
-
-      {renderableSections.map(({ type, label, posts }) => {
-        if (posts.length === 0) return null;
-
-        return (
-          <section key={type} className="mb-8">
-            <h2 className="text-sm font-extrabold text-gray-800 mb-3 uppercase tracking-wider flex items-center gap-2">
-              <span className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></span>
-              {label}
-            </h2>
-            <div className="border border-gray-200 divide-y divide-gray-200 rounded-lg shadow-sm bg-white overflow-hidden">
-              {posts.map((post) => (
-                <JobCard key={post.slug} post={post} />
-              ))}
+            {/* Live Counter */}
+            <div className="flex items-center gap-6 flex-wrap">
+              <div className="flex flex-col">
+                <span className="text-3xl font-mono font-bold tabular text-gold">
+                  {totalNotifications}
+                </span>
+                <span className="text-xs font-mono text-hero-muted uppercase tracking-widest">
+                  Active Updates
+                </span>
+              </div>
+              <div className="w-px h-12 bg-hero-muted/20" />
+              <div className="flex flex-col">
+                <span className="text-3xl font-mono font-bold tabular text-gold">
+                  {new Date().toLocaleDateString('en-GB', {
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric',
+                  })}
+                </span>
+                <span className="text-xs font-mono text-hero-muted uppercase tracking-widest">
+                  Last Updated
+                </span>
+              </div>
             </div>
-          </section>
-        );
-      })}
+          </div>
+        </section>
 
+        {/* Main Content */}
+        <div className="container-editorial py-8">
+          {error && (
+            <div className="p-4 text-sm text-danger bg-danger-bg border border-danger-border rounded-card mb-6">
+              Failed to load job sections. Please try again.
+            </div>
+          )}
+          
+          {!hasData && !error && (
+            <div className="text-center py-12">
+              <p className="text-sm text-slate">
+                No job alerts or updates posted yet. Check back soon.
+              </p>
+            </div>
+          )}
+
+          {renderableSections.map(({ type, label, posts }, sectionIndex) => {
+            if (posts.length === 0) return null;
+
+            return (
+              <section key={type} className="mb-10">
+                {/* Section Header */}
+                <div className="flex items-center gap-3 pb-4 mb-6 border-b hairline-border">
+                  <span className="w-2 h-2 bg-gold rounded-full" />
+                  <h2 className="text-xs font-mono font-bold text-primary uppercase tracking-widest">
+                    {label}
+                  </h2>
+                  <span className="ml-auto text-xs font-mono text-slate">
+                    {posts.length} {posts.length === 1 ? 'Post' : 'Posts'}
+                  </span>
+                </div>
+
+                {/* Cards Grid */}
+                <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+                  {posts.map((post, cardIndex) => (
+                    <div
+                      key={post.slug}
+                      className="fade-up"
+                      style={{
+                        animationDelay: `${sectionIndex * 100 + cardIndex * 60}ms`,
+                      }}
+                    >
+                      <JobCard post={post} />
+                    </div>
+                  ))}
+                </div>
+              </section>
+            );
+          })}
+        </div>
+      </main>
       <Footer />
-    </main>
+    </>
   );
 }

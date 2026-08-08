@@ -1,1 +1,366 @@
 @import "tailwindcss";
+@config "../tailwind.config.ts";
+
+/* ============================================
+   DESIGN TOKENS
+   ============================================ */
+
+:root {
+  --bg: #FAFAF9;
+  --surface: #FAFAF9;
+  --card-bg: #FAFAF9;
+  --ink-navy: #0B2545;
+  --paper: #FAFAF9;
+  --card: #FAFAF9;
+  --card-hover: #F4F2EC;
+  --ink: #0B2545;
+  --text-primary: #0B2545;
+  --gold: #C6A15B;
+  --slate: #5A6472;
+  --emerald: #1F7A5C;
+  --hairline: #E5E2DB;
+  --hero-text: #FAFAF9;
+  --hero-muted: #E7E9EC;
+  --hero-rule: rgba(250, 250, 249, 0.25);
+  --danger: #B42318;
+  --danger-bg: #FFF3F1;
+  --danger-border: #F3C6C0;
+  --notice: #F0F6FC;
+  --notice-border: #CFE0F2;
+  --action: #0B2545;
+  --action-hover: #163A66;
+  --action-contrast: #FAFAF9;
+  --shadow-card-hover: 0 6px 18px rgba(11, 37, 69, 0.16);
+  color-scheme: light;
+}
+
+html[data-theme='dark'] {
+  --bg: #0B1420;
+  --surface: #14202E;
+  --card-bg: #14202E;
+  --ink-navy: #0B1420;
+  --paper: #0B1420;
+  --card: #14202E;
+  --card-hover: #1A2A3A;
+  --ink: #F2F0EA;
+  --text-primary: #F2F0EA;
+  --gold: #C6A15B;
+  --slate: #9AA4B2;
+  --emerald: #44BD95;
+  --hairline: #1F2A38;
+  --hero-text: #F2F0EA;
+  --hero-muted: #D5DCE5;
+  --hero-rule: rgba(242, 240, 234, 0.2);
+  --danger: #FFD2CC;
+  --danger-bg: #3A2027;
+  --danger-border: #75404A;
+  --notice: #172B40;
+  --notice-border: #31526E;
+  --action: #C6A15B;
+  --action-hover: #D3B272;
+  --action-contrast: #0B1420;
+  --shadow-card-hover: 0 8px 22px rgba(0, 0, 0, 0.38);
+  color-scheme: dark;
+}
+
+html {
+  background-color: var(--bg);
+  color: var(--text-primary);
+  scroll-behavior: smooth;
+}
+
+body {
+  min-height: 100vh;
+  background-color: var(--bg);
+  color: var(--text-primary);
+  font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ============================================
+   TYPOGRAPHY
+   ============================================ */
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display), Georgia, serif;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.headline-xl {
+  font-size: 2.5rem;
+  line-height: 1.1;
+  font-family: var(--font-display), Georgia, serif;
+  font-weight: 600;
+}
+
+.headline-lg {
+  font-size: 2rem;
+  font-family: var(--font-display), Georgia, serif;
+  font-weight: 600;
+}
+
+.headline-md {
+  font-size: 1.25rem;
+  font-family: var(--font-display), Georgia, serif;
+  font-weight: 600;
+}
+
+.headline-sm {
+  font-size: 1.125rem;
+  font-family: var(--font-display), Georgia, serif;
+  font-weight: 500;
+}
+
+/* Tabular numbers for data */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.mono {
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--slate);
+}
+
+/* ============================================
+   COMPONENTS
+   ============================================ */
+
+.hero {
+  background-color: var(--ink-navy);
+  border-bottom: 4px solid var(--gold);
+  color: var(--hero-text);
+}
+
+.hero-copy,
+.hero-label {
+  color: var(--hero-muted);
+}
+
+.hero-divider {
+  width: 1px;
+  height: 3rem;
+  background-color: var(--hero-rule);
+}
+
+/* Seal badge */
+.seal-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 1.125rem;
+  height: 1.125rem;
+  border: 1.5px solid var(--gold);
+  border-radius: 50%;
+  background-color: var(--card-bg);
+  box-shadow: 0 1px 2px rgba(11, 37, 69, 0.16);
+  pointer-events: none;
+}
+
+.seal-badge::before {
+  content: '';
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 50%;
+}
+
+.seal-badge.notification::before {
+  background-color: var(--gold);
+}
+
+.seal-badge.latest::before {
+  background-color: var(--gold);
+}
+
+.seal-badge.upcoming::before {
+  background-color: var(--slate);
+}
+
+.seal-badge.result::before {
+  background-color: var(--emerald);
+}
+
+/* Hairline borders */
+.hairline-border {
+  border-color: var(--hairline);
+}
+
+/* Soft shadow for cards on hover */
+.card-lift {
+  transition:
+    transform 150ms ease-out,
+    box-shadow 150ms ease-out,
+    background-color 200ms ease,
+    border-color 200ms ease,
+    color 200ms ease;
+}
+
+.card-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-card-hover);
+}
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  flex-shrink: 0;
+  border: 1px solid var(--hairline);
+  border-radius: 9999px;
+  background-color: var(--card);
+  color: var(--ink);
+}
+
+.theme-toggle:hover {
+  border-color: var(--gold);
+  background-color: var(--card-hover);
+}
+
+.theme-toggle:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+.site-footer {
+  background-color: var(--ink-navy);
+  color: var(--hero-text);
+}
+
+.footer-muted {
+  color: var(--hero-muted);
+}
+
+.footer-subtle {
+  color: color-mix(in srgb, var(--hero-muted) 78%, transparent);
+}
+
+/* ============================================
+   ANIMATIONS
+   ============================================ */
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-up {
+  animation: fadeUp 300ms ease-out both;
+}
+
+/* Stagger animation via CSS */
+.stagger-1 { animation-delay: 0ms; }
+.stagger-2 { animation-delay: 60ms; }
+.stagger-3 { animation-delay: 120ms; }
+.stagger-4 { animation-delay: 180ms; }
+.stagger-5 { animation-delay: 240ms; }
+.stagger-6 { animation-delay: 300ms; }
+
+/* Underline animation for tabs */
+.underline-animated {
+  position: relative;
+  transition: color 150ms ease-out;
+}
+
+.underline-animated::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: 0;
+  height: 2px;
+  background-color: var(--gold);
+  width: 0;
+  transition: width 150ms ease-out;
+}
+
+.underline-animated.active::after {
+  width: 100%;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  body,
+  body * {
+    transition-property: color, background-color, border-color;
+    transition-duration: 200ms;
+    transition-timing-function: ease;
+  }
+
+  .card-lift {
+    transition:
+      transform 150ms ease-out,
+      box-shadow 150ms ease-out,
+      background-color 200ms ease,
+      border-color 200ms ease,
+      color 200ms ease;
+  }
+}
+
+/* Respect prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-delay: 0ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ============================================
+   LAYOUT UTILITIES
+   ============================================ */
+
+.container-editorial {
+  max-width: 48rem;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+@media (min-width: 1024px) {
+  .container-editorial {
+    max-width: 56rem;
+  }
+}
+
+/* Sticky header */
+.sticky-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background-color: var(--card-bg);
+  box-shadow: 0 1px 0 var(--hairline);
+}
+
+/* ============================================
+   RESPONSIVE UTILITIES
+   ============================================ */
+
+@media (max-width: 640px) {
+  .headline-xl {
+    font-size: 1.75rem;
+  }
+
+  .headline-lg {
+    font-size: 1.5rem;
+  }
+}

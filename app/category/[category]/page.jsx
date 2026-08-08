@@ -4,7 +4,7 @@ import CategoryTabs from '@/components/CategoryTabs';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 
-export const revalidate = 300;
+export const revalidate = 60;
 
 export default async function CategoryPage({ params }) {
   const { category } = await params;
@@ -23,8 +23,8 @@ export default async function CategoryPage({ params }) {
 
   // 2. Uniform UI configuration mirroring the homepage sections
   const sectionsConfig = [
-    { type: 'notification', label: 'Latest Notifications', limit: 30 },
-    { type: 'upcoming', label: 'Upcoming (Expected)', limit: 10 },
+    { type: 'latest-job', label: 'Latest Notifications', limit: 30 },
+    { type: 'upcoming-job', label: 'Upcoming (Expected)', limit: 10 },
     { type: 'admit-card', label: 'Admit Cards', limit: 15 },
     { type: 'result', label: 'Results', limit: 15 },
     { type: 'answer-key', label: 'Answer Keys', limit: 10 },
@@ -43,50 +43,75 @@ export default async function CategoryPage({ params }) {
   });
 
   const hasData = renderableSections.some((s) => s.posts.length > 0);
-
   return (
-    <main className="max-w-2xl mx-auto px-4 py-6">
+    <>
       <Header />
-      
-      {/* Dynamic string passing ensures the right tab glows active */}
-      <CategoryTabs active={activeCategory} />
+      <main className="min-h-screen bg-paper">
+        <CategoryTabs active={activeCategory} showLabel={false} />
+        {/* Category Hero */}
+        <section className="bg-ink-navy text-hero-text border-b-4 border-gold">
+          <div className="container-editorial py-8 md:py-10">
+            <h1 className="headline-lg text-hero-text mb-2">
+              {activeCategory.toUpperCase()} Portal
+            </h1>
+            <p className="text-sm md:text-base text-hero-muted">
+              Notifications, admit cards, results, and answer keys for {activeCategory.toUpperCase()}
+            </p>
+          </div>
+        </section>
 
-      {/* Clear section context for SEO and user path tracking */}
-      <h1 className="text-base font-black text-gray-900 my-4 uppercase tracking-tight px-1 flex items-center gap-1.5">
-        <span className="w-1.5 h-3 bg-blue-600 rounded-sm"></span>
-        {activeCategory} Portal Updates
-      </h1>
-
-      {error && (
-        <p className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded mb-4">
-          Could not load category updates. Please try again.
-        </p>
-      )}
-
-      {!hasData && !error && (
-        <p className="p-4 text-sm text-gray-500 border border-dashed border-gray-200 rounded-lg text-center py-12">
-          No updates posted under <span className="font-semibold text-gray-700">{activeCategory}</span> yet.
-        </p>
-      )}
-
-      {renderableSections.map(({ type, label, posts }) => {
-        if (posts.length === 0) return null;
-
-        return (
-          <section key={type} className="mb-8">
-            <h2 className="text-xs font-bold text-gray-500 mb-2 uppercase tracking-widest px-1">
-              {label}
-            </h2>
-            <div className="border border-gray-200 divide-y divide-gray-200 rounded-lg shadow-sm bg-white overflow-hidden">
-              {posts.map((post) => (
-                <JobCard key={post.slug} post={post} />
-              ))}
+        {/* Main Content */}
+        <div className="container-editorial pb-8">
+          {error && (
+            <div className="p-4 text-sm text-danger bg-danger-bg border border-danger-border rounded-card mb-6 mt-6">
+              Could not load category updates. Please try again.
             </div>
-          </section>
-        );
-      })}
+          )}
 
+          {!hasData && !error && (
+            <div className="text-center py-12 mt-6">
+              <p className="text-sm text-slate">
+                No updates posted under <span className="font-semibold text-primary">{activeCategory.toUpperCase()}</span> yet.
+              </p>
+            </div>
+          )}
+
+          {renderableSections.map(({ type, label, posts }, sectionIndex) => {
+            if (posts.length === 0) return null;
+
+            return (
+              <section key={type} className="mb-10 mt-6">
+                {/* Section Header */}
+                <div className="flex items-center gap-3 pb-4 mb-6 border-b hairline-border">
+                  <span className="w-2 h-2 bg-gold rounded-full" />
+                  <h2 className="text-xs font-mono font-bold text-primary uppercase tracking-widest">
+                    {label}
+                  </h2>
+                  <span className="ml-auto text-xs font-mono text-slate">
+                    {posts.length} {posts.length === 1 ? 'Post' : 'Posts'}
+                  </span>
+                </div>
+
+                {/* Cards Grid */}
+                <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+                  {posts.map((post, cardIndex) => (
+                    <div
+                      key={post.slug}
+                      className="fade-up"
+                      style={{
+                        animationDelay: `${sectionIndex * 100 + cardIndex * 60}ms`,
+                      }}
+                    >
+                      <JobCard post={post} />
+                    </div>
+                  ))}
+                </div>
+              </section>
+            );
+          })}
+        </div>
+      </main>
       <Footer />
-    </main>
+    </>
   );
 }
