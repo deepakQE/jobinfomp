@@ -20,6 +20,15 @@ if not all([TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, SUPABASE_URL, SUPABASE_KEY]):
 # Initialize Supabase client
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+
+def get_last_date(job):
+    dates = job.get('important_dates') or []
+    for date_row in dates:
+        label = str(date_row.get('label', '')).lower()
+        if 'last date' in label or 'deadline' in label:
+            return date_row.get('date', 'Not specified')
+    return 'Not specified'
+
 def fetch_latest_job():
     try:
         # Pull the latest job that is published AND has NOT been posted to Telegram yet
@@ -35,24 +44,23 @@ def fetch_latest_job():
             return None
         return response.data[0]
     except Exception as e:
+        if 'telegram_posted' in str(e):
+            print('Database schema error: job_posts.telegram_posted is missing. Add the column in Supabase SQL Editor before running this script.')
         print(f"Database Fetch Error: {str(e)}")
         return None
 
 def send_telegram_alert(job):
     job_url = f"https://jobinfomp.netlify.app/job/{job['slug']}"
     
-    # PROTECTED DATE PARSING LAYER
-    raw_date = job.get('application_deadline')
-    formatted_date = 'Not specified' # Secure default fallback layout
-    
-    if raw_date:
+    raw_date = get_last_date(job)
+    formatted_date = 'Not specified'
+
+    if raw_date != 'Not specified':
         try:
-            # Handle if the database passes a full timestamp or string split parameter
             clean_date = str(raw_date).split('T')[0].strip()
             date_obj = datetime.strptime(clean_date, '%Y-%m-%d')
             formatted_date = date_obj.strftime('%d %B %Y')
         except (ValueError, TypeError):
-            # Fallback instead of crashing if the date format is unexpected
             formatted_date = str(raw_date)
     
     message = f"""🚨 *New Job Update!* 🚨
@@ -80,8 +88,11 @@ def send_telegram_alert(job):
         
         if response.status_code == 200:
             # Tell the database this job is handled so it never posts again
-            supabase.table('job_posts').update({'telegram_posted': True}).eq('slug', job['slug']).execute()
-            print(f"Success: Anti-spam flag set. Job [{job['slug']}] posted securely.")
+            try:
+                supabase.table('job_posts').update({'telegram_posted': True}).eq('slug', job['slug']).execute()
+                print(f"Success: Anti-spam flag set. Job [{job['slug']}] posted securely.")
+            except Exception as update_error:
+                print(f"Telegram sent, but database update failed: {str(update_error)}")
         else:
             print(f"Telegram API Error: {response.text}")
     except requests.exceptions.RequestException as e:

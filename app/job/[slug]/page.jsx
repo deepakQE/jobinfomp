@@ -1,192 +1,120 @@
 import { supabase } from '@/lib/supabase';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { cache } from 'react';
 
-// FORCE INSTANT LIVE FETCHING - NO STATIC CACHING
-export const dynamic = 'force-dynamic';
+export const revalidate = 60;
 
 const getJobPost = cache(async (slug) => {
-  return supabase
+  const { data, error } = await supabase
     .from('job_posts')
     .select('*')
     .eq('slug', slug)
     .eq('is_published', true)
     .single();
+
+  if (error || !data) return null;
+  return data;
 });
 
 export async function generateMetadata({ params }) {
   const { slug } = await params;
-  const { data: post } = await getJobPost(slug);
+  const post = await getJobPost(slug);
 
-  if (!post) return { title: 'Job not found | Jobinfo MP' };
+  if (!post) {
+    return {
+      title: 'Job not found | Jobinfo MP',
+      description: 'The requested job update could not be found.',
+    };
+  }
+
+  const keywords = [
+    post.title,
+    post.category,
+    post.department_name,
+    post.post_type,
+    'MP job update',
+    'government vacancy',
+  ]
+    .filter(Boolean)
+    .join(', ');
 
   return {
     title: `${post.title} | Jobinfo MP`,
-    description: post.short_summary || 'Latest MP government job notification, eligibility, vacancy, and apply online details.',
-    alternates: { canonical: `https://jobinfomp.netlify.app/job/${slug}` },
+    description: post.short_summary || post.title,
+    keywords,
   };
 }
 
-export default async function JobPage({ params }) {
+function parseJson(value) {
+  if (!value) return null;
+  if (typeof value === 'object') return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+}
+
+export default async function JobDetailPage({ params, searchParams }) {
   const { slug } = await params;
-  const { data: post } = await getJobPost(slug);
+  const resolvedSearchParams = await searchParams;
+  const backTo = typeof resolvedSearchParams?.back === 'string' ? resolvedSearchParams.back : '/';
+  const post = await getJobPost(slug);
 
-  if (!post) return notFound();
+  if (!post) notFound();
 
-  // Robust JSON parser that handles both raw arrays and stringified JSON
-  const parseJson = (field) => {
-    if (!field) return [];
-    if (typeof field === 'string') {
-      try { return JSON.parse(field); } catch {
-        return [];
-      }
-    }
-    return Array.isArray(field) ? field : [];
-  };
-
-  const dates = parseJson(post.important_dates);
-  const fees = parseJson(post.application_fee);
-  const vacancies = parseJson(post.vacancy_details);
+  const importantDates = parseJson(post.important_dates);
+  const relatedLabel = ['result', 'answer-key', 'admit-card'].includes(post.post_type)
+    ? 'Related updates'
+    : 'Related links';
 
   return (
-    <>
+    <main className="max-w-2xl mx-auto px-4 py-6">
       <Header />
-      <main className="max-w-2xl mx-auto px-4 py-6">
-      
-      <div className="mb-8">
-        <h1 className="text-2xl font-black text-primary mb-3 leading-tight">{post.title}</h1>
+
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <Link href={backTo} className="text-xs font-semibold text-blue-700 hover:text-blue-800">
+          ← Back
+        </Link>
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+          {post.category}
+        </span>
+      </div>
+
+      <article className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-blue-700 mb-2">
+          {post.post_type}
+        </p>
+        <h1 className="text-2xl font-extrabold text-gray-900 leading-tight">{post.title}</h1>
+
         {post.short_summary && (
-          <p className="text-sm text-slate bg-notice p-4 rounded-lg border border-notice-border leading-relaxed">
-            {post.short_summary}
-          </p>
+          <p className="mt-3 text-sm leading-6 text-gray-700">{post.short_summary}</p>
         )}
-      </div>
 
-      {dates.length > 0 && (
-        <section className="mb-8">
-          <h2 className="text-sm font-extrabold text-primary mb-3 uppercase tracking-wider flex items-center gap-2">
-             <span className="w-2 h-2 bg-blue-600 rounded-full"></span>
-             Important Dates
-          </h2>
-          <div className="overflow-hidden border hairline-border rounded-lg">
-            <table className="w-full text-sm text-left">
-              <tbody className="divide-y divide-hairline">
-                {dates.map((row, i) => (
-                  <tr key={i} className="bg-card-bg hover:bg-card-hover transition-colors">
-                    <td className="p-3 text-slate">{row.label}</td>
-                    <td className="p-3 text-right text-primary font-semibold">{row.date}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
-
-      {fees.length > 0 && (
-        <section className="mb-8">
-          <h2 className="text-sm font-extrabold text-primary mb-3 uppercase tracking-wider flex items-center gap-2">
-             <span className="w-2 h-2 bg-green-600 rounded-full"></span>
-             Application Fee
-          </h2>
-          <div className="overflow-hidden border hairline-border rounded-lg">
-            <table className="w-full text-sm text-left">
-              <tbody className="divide-y divide-hairline">
-                {fees.map((row, i) => (
-                  <tr key={i} className="bg-card-bg hover:bg-card-hover transition-colors">
-                    <td className="p-3 text-slate">{row.category}</td>
-                    <td className="p-3 text-right text-primary font-semibold">{row.fee}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
-
-      {post.eligibility && (
-        <section className="mb-8">
-          <h2 className="text-sm font-extrabold text-primary mb-3 uppercase tracking-wider">Eligibility</h2>
-          <div className="text-sm text-slate whitespace-pre-line bg-card-bg p-4 rounded-lg border hairline-border leading-relaxed">
-            {post.eligibility}
-          </div>
-        </section>
-      )}
-
-      {vacancies.length > 0 && (
-        <section className="mb-8">
-          <h2 className="text-sm font-extrabold text-primary mb-3 uppercase tracking-wider">Vacancy Breakdown</h2>
-          <div className="overflow-hidden border hairline-border rounded-lg">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-card-hover border-b hairline-border text-slate font-semibold uppercase text-xs tracking-wider">
-                <tr>
-                  <th className="p-3">Post Name</th>
-                  <th className="p-3 text-right">Count</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-hairline">
-                {vacancies.map((row, i) => (
-                  <tr key={i} className="bg-card-bg hover:bg-card-hover transition-colors">
-                    <td className="p-3 text-slate">{row.post_name}</td>
-                    <td className="p-3 text-right text-primary font-bold">{row.count}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
-
-      {post.how_to_apply && (
-        <section className="mb-8">
-          <h2 className="text-sm font-extrabold text-primary mb-3 uppercase tracking-wider">How to Apply</h2>
-          <div className="text-sm text-slate whitespace-pre-line bg-card-bg p-4 rounded-lg border hairline-border leading-relaxed">
-            {post.how_to_apply}
-          </div>
-        </section>
-      )}
-
-      <div className="flex flex-col gap-3 mb-8">
-        {post.official_link && (
-          <a href={post.official_link} target="_blank" rel="noopener noreferrer"
-             className="text-sm text-center font-bold tracking-wide bg-action hover:bg-action-hover text-action-contrast rounded-lg py-3.5 transition-colors">
-            Apply Online / Official Website
-          </a>
+        {importantDates && (
+          <section className="mt-6 rounded-lg border border-blue-100 bg-blue-50 p-4">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-blue-900">Important dates</h2>
+            <pre className="mt-3 whitespace-pre-wrap text-sm text-gray-700">{JSON.stringify(importantDates, null, 2)}</pre>
+          </section>
         )}
-        {post.notification_pdf_link && (
-          <a href={post.notification_pdf_link} target="_blank" rel="noopener noreferrer"
-             className="text-sm text-center font-semibold tracking-wide border-2 border-hairline bg-card-bg hover:bg-card-hover rounded-lg py-3 text-primary transition-all">
-            Download Notification PDF
-          </a>
-        )}
-      </div>
+
+        <section className="mt-6">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-gray-900">{relatedLabel}</h2>
+          <div className="mt-3 flex flex-wrap gap-3 text-sm">
+            <Link href={`/category/${encodeURIComponent(post.category)}`} className="text-blue-700 hover:text-blue-800">
+              View category updates
+            </Link>
+            <Link href="/contact" className="text-blue-700 hover:text-blue-800">
+              Contact us
+            </Link>
+          </div>
+        </section>
+      </article>
 
       <Footer />
-
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify({
-            '@context': 'https://schema.org/',
-            '@type': 'JobPosting',
-            title: post.title,
-            description: post.eligibility || post.short_summary || post.title,
-            datePosted: post.created_at,
-            validThrough: dates.find((d) =>
-              d.label.toLowerCase().includes('last date')
-            )?.date || undefined,
-            employmentType: 'FULL_TIME',
-            hiringOrganization: { '@type': 'Organization', name: post.category?.toUpperCase() || 'Government of Madhya Pradesh' },
-            jobLocation: {
-              '@type': 'Place',
-              address: { '@type': 'PostalAddress', addressRegion: 'Madhya Pradesh', addressCountry: 'IN' },
-            },
-          }),
-        }}
-      />
-      </main>
-    </>
+    </main>
   );
 }
