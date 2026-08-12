@@ -2,6 +2,7 @@ import os
 import requests
 import json
 import re
+import html
 from bs4 import BeautifulSoup
 from datetime import datetime
 from supabase import create_client, Client
@@ -33,6 +34,13 @@ if not all([TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, SUPABASE_URL, SUPABASE_KEY]):
 
 # Initialize Supabase client
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+def escape_html(text):
+    """Safely escapes text to prevent Telegram HTML parsing errors"""
+    if not text: 
+        return ""
+    # Using Python's built-in html.escape is the safest and most comprehensive method
+    return html.escape(str(text), quote=False)
 
 def check_if_exists(pdf_link, title):
     """Prevents duplicate posts by checking PDF link or title"""
@@ -151,26 +159,27 @@ def trigger_telegram(job):
     raw_date = get_last_date(job)
     formatted_date = raw_date if raw_date != 'Not specified' else 'Not specified'
     
-    message = f"""🚨 *New Verified Job Update!* 🚨
+    # Using HTML tags (<b>) with escaped text to prevent parsing crashes
+    message = f"""<b>🚨 New Verified Job Update! 🚨</b>
 
-📌 *{job['title']}*
-💼 *Category:* {job['category'].upper()}
+📌 <b>{escape_html(job['title'])}</b>
+💼 <b>Category:</b> {escape_html(job['category'].upper())}
 
-{job['short_summary']}
+{escape_html(job['short_summary'])}
 
-🗓 *Deadline:* {formatted_date}
+🗓 <b>Deadline:</b> {escape_html(formatted_date)}
 
-🔗 *Official Website:* {job['official_link']}
-📄 *Download PDF:* {job['notification_pdf_link']}
+🔗 <b>Official Website:</b> {escape_html(job['official_link'])}
+📄 <b>Download PDF:</b> {escape_html(job['notification_pdf_link'])}
 
-✅ *Verified by Jobinfo MP*
-🔎 *View Details:* {job_url}
+✅ <b>Verified by Jobinfo MP</b>
+🔎 <b>View Details:</b> {escape_html(job_url)}
 """
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     payload = {
         "chat_id": TELEGRAM_CHAT_ID,
         "text": message,
-        "parse_mode": "Markdown"
+        "parse_mode": "HTML"  # Changed from Markdown to HTML for better reliability
     }
     
     try:
