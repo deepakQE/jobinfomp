@@ -1,8 +1,10 @@
 import os
 import requests
+from bs4 import BeautifulSoup
 from datetime import datetime
 from supabase import create_client, Client
 from dotenv import load_dotenv
+import time
 
 # 1. Force Python to load the .env file
 load_dotenv()
@@ -11,20 +13,107 @@ load_dotenv()
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 SUPABASE_URL = os.getenv('SUPABASE_URL')
-SUPABASE_KEY = os.getenv('SUPABASE_KEY')
+SUPABASE_KEY = os.getenv('SUPABASE_KEY') # MUST BE SERVICE ROLE KEY
 
-print("=== TELEGRAM BOT DEBUG START ===")
+print("=== TELEGRAM & SCRAPER BOT START ===")
 print(f"1. Token Loaded: {bool(TELEGRAM_BOT_TOKEN)}")
 print(f"2. Chat ID Loaded: {bool(TELEGRAM_CHAT_ID)}")
 print(f"3. Supabase URL: {SUPABASE_URL}")
 print(f"4. Supabase Key starts with: {SUPABASE_KEY[:15] if SUPABASE_KEY else 'MISSING'}...")
-print("================================\n")
+print("====================================\n")
 
 if not all([TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, SUPABASE_URL, SUPABASE_KEY]):
-    raise ValueError("❌ Missing API keys. Check your .env file.")
+    raise ValueError("❌ Missing API keys. Check your .env file or GitHub Secrets.")
 
 # Initialize Supabase client
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+def check_if_exists(pdf_link, title):
+    """Prevents duplicate posts by checking PDF link or title"""
+    if pdf_link:
+        res = supabase.table('job_posts').select('slug').eq('notification_pdf_link', pdf_link).execute()
+        if res.data: return True
+    # Fallback: check if title contains similar words
+    search_term = title[:30].strip()
+    res = supabase.table('job_posts').select('slug').ilike('title', f'%{search_term}%').execute()
+    return len(res.data) > 0
+
+def scrape_mppsc():
+    print("🔍 Scraping MPPSC...")
+    try:
+        url = "https://mppsc.mp.gov.in/"
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+        response = requests.get(url, headers=headers, timeout=15)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        for a_tag in soup.find_all('a', href=True):
+            href = a_tag['href'].lower()
+            if 'advertisement' in href and '.pdf' in href:
+                title = a_tag.text.strip()
+                if len(title) < 15: continue # Skip tiny menu links
+                
+                pdf_link = a_tag['href'] if a_tag['href'].startswith('http') else "https://mppsc.mp.gov.in" + a_tag['href']
+                
+                if not check_if_exists(pdf_link, title):
+                    print(f"✅ Found New MPPSC Job: {title}")
+                    insert_job(title, pdf_link, "https://mppsc.mp.gov.in", "mppsc")
+                    return # Process one at a time to avoid spam
+    except Exception as e:
+        print(f"❌ MPPSC Scraper Error: {e}")
+
+def scrape_mpesb():
+    print("🔍 Scraping MPESB...")
+    try:
+        url = "https://esb.mp.gov.in/e_default.html"
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+        response = requests.get(url, headers=headers, timeout=15)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        for a_tag in soup.find_all('a', href=True):
+            href = a_tag['href'].lower()
+            if 'rulebook' in href or 'advertisement' in href:
+                title = a_tag.text.strip()
+                if len(title) < 20: continue # Skip tiny menu links
+                
+                pdf_link = a_tag['href'] if a_tag['href'].startswith('http') else "https://esb.mp.gov.in" + a_tag['href']
+                
+                if not check_if_exists(pdf_link, title):
+                    print(f"✅ Found New MPESB Job: {title}")
+                    insert_job(title, pdf_link, "https://esb.mp.gov.in", "mpesb")
+                    return # Process one at a time
+    except Exception as e:
+        print(f"❌ MPESB Scraper Error: {e}")
+
+def insert_job(title, pdf_link, official_link, category):
+    """Formats and inserts clean, authentic data into Supabase"""
+    safe_title = title.lower().replace(' ', '-').replace('/', '-')[:80]
+    slug = f"{safe_title}-{int(time.time())}"
+    
+    job_data = {
+        'slug': slug,
+        'title': title,
+        'category': category,
+        'post_type': 'latest-job',
+        'short_summary': f'Official notification released for {title}. Candidates can apply online through the official portal.',
+        'important_dates': '[]',
+        'application_fee': '[]',
+        'eligibility': 'Check official PDF notification for detailed eligibility criteria, age limit, and educational qualifications.',
+        'vacancy_details': '[]',
+        'how_to_apply': f'1. Visit the official website: {official_link}\n2. Read the detailed PDF notification carefully.\n3. Apply online through the official MPOnline or departmental portal before the last date.',
+        'official_link': official_link,
+        'notification_pdf_link': pdf_link,
+        'is_published': True,
+        'telegram_posted': False,
+        'meta_title': f'{title} 2026 | Apply Online, PDF, Last Date - Jobinfo MP',
+        'meta_description': f'Download official PDF notification, check eligibility, and apply online for {title}. Verified source.'
+    }
+    
+    try:
+        supabase.table('job_posts').insert(job_data).execute()
+        print("💾 Successfully inserted into Supabase!")
+        trigger_telegram(job_data)
+    except Exception as e:
+        print(f"❌ Insert failed: {e}")
 
 def get_last_date(job):
     dates = job.get('important_dates') or []
@@ -34,43 +123,12 @@ def get_last_date(job):
             return date_row.get('date', 'Not specified')
     return 'Not specified'
 
-def fetch_latest_job():
-    try:
-        print("🔍 Querying Supabase for jobs where is_published=True AND telegram_posted=False...")
-        response = supabase.table('job_posts') \
-            .select('*') \
-            .eq('is_published', True) \
-            .eq('telegram_posted', False) \
-            .order('created_at', desc=True) \
-            .limit(1) \
-            .execute()
-        
-        if not response.data:
-            print("⚠️ No jobs found. This usually means:")
-            print("   a) All jobs already have telegram_posted = true")
-            print("   b) Supabase RLS is blocking the query (Use Service Role Key or add RLS policies)")
-            
-            # Debug: Check what IS in the database
-            debug_response = supabase.table('job_posts').select('slug, is_published, telegram_posted').limit(3).execute()
-            print(f"   🔎 Sample of jobs in DB: {debug_response.data}")
-            return None
-            
-        print(f"✅ Found job to post: {response.data[0]['title']}")
-        return response.data[0]
-        
-    except Exception as e:
-        print(f"❌ Database Fetch Error: {str(e)}")
-        return None
-
-def send_telegram_alert(job):
+def trigger_telegram(job):
     job_url = f"https://jobinfomp.netlify.app/job/{job['slug']}"
     raw_date = get_last_date(job)
-    
-    # Since our DB uses formats like "16 August 2026", we'll just use it directly 
-    # instead of forcing a YYYY-MM-DD parse that will crash.
     formatted_date = raw_date if raw_date != 'Not specified' else 'Not specified'
     
-    message = f"""🚨 *New Job Update!* 🚨
+    message = f"""🚨 *New Verified Job Update!* 🚨
 
 📌 *{job['title']}*
 💼 *Category:* {job['category'].upper()}
@@ -79,40 +137,63 @@ def send_telegram_alert(job):
 
 🗓 *Deadline:* {formatted_date}
 
-🔗 *Apply / View Details:* {job_url}
-"""
+🔗 *Official Website:* {job['official_link']}
+📄 *Download PDF:* {job['notification_pdf_link']}
 
+✅ *Verified by Jobinfo MP*
+🔎 *View Details:* {job_url}
+"""
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     payload = {
         "chat_id": TELEGRAM_CHAT_ID,
         "text": message,
         "parse_mode": "Markdown"
     }
-
+    
     try:
         print("📤 Sending message to Telegram...")
-        response = requests.post(url, json=payload, timeout=10)
-        
-        if response.status_code == 200:
+        resp = requests.post(url, json=payload, timeout=10)
+        if resp.status_code == 200:
             print("✅ Telegram message sent successfully!")
-            try:
-                print("💾 Updating Supabase to set telegram_posted = True...")
-                supabase.table('job_posts') \
-                    .update({'telegram_posted': True}) \
-                    .eq('slug', job['slug']) \
-                    .execute()
-                print("✅ Database updated successfully. Anti-spam flag set.")
-            except Exception as update_error:
-                print(f"⚠️ Telegram sent, but database update failed: {str(update_error)}")
+            # Mark as posted so it never posts again
+            supabase.table('job_posts').update({'telegram_posted': True}).eq('slug', job['slug']).execute()
+            print("💾 Database updated: telegram_posted = True\n")
         else:
-            print(f"❌ Telegram API Error: {response.status_code} - {response.text}")
-            
-    except requests.exceptions.RequestException as e:
-        print(f"❌ Network Timeout/Error contacting Telegram: {str(e)}")
+            print(f"❌ Telegram API Error: {resp.status_code} - {resp.text}\n")
+    except Exception as e:
+        print(f"❌ Network Error contacting Telegram: {e}\n")
+
+def check_and_post_existing_jobs():
+    """Fallback: Checks for any jobs that were manually added but not yet posted to Telegram"""
+    print("🔍 Checking for existing unposted jobs in Supabase...")
+    try:
+        response = supabase.table('job_posts') \
+            .select('*') \
+            .eq('is_published', True) \
+            .eq('telegram_posted', False) \
+            .order('created_at', desc=True) \
+            .limit(1) \
+            .execute()
+        
+        if response.data:
+            job = response.data[0]
+            print(f"✅ Found unposted job: {job['title']}")
+            trigger_telegram(job)
+        else:
+            print("✅ No unposted jobs found. All caught up!\n")
+    except Exception as e:
+        print(f"❌ Error checking existing jobs: {e}")
 
 if __name__ == "__main__":
-    latest_job = fetch_latest_job()
-    if latest_job:
-        send_telegram_alert(latest_job)
-    else:
-        print("🛑 Script finished. No active jobs found to post.")
+    print("🤖 ==========================================")
+    print("🤖 Starting Automated Authentic Scraper & Bot")
+    print("🤖 ==========================================\n")
+    
+    # 1. Try to scrape new jobs first
+    scrape_mppsc()
+    scrape_mpesb()
+    
+    # 2. Then, check if there are any manually added jobs waiting to be posted
+    check_and_post_existing_jobs()
+    
+    print("✅ Scraper and Bot run complete.")
