@@ -32,7 +32,6 @@ export async function generateMetadata({ params }) {
     };
   }
 
-  // UPGRADE: Use meta_title and meta_description if they exist
   const title = post.meta_title || `${post.title} | Jobinfo MP`;
   const description = post.meta_description || post.short_summary || `Check latest details, apply online link, and eligibility for ${post.title} on Jobinfo MP.`;
   
@@ -126,7 +125,6 @@ export default async function JobDetailPage({ params, searchParams }) {
     ? 'Related updates'
     : 'Related links';
 
-  // UPGRADE: JSON-LD Schema for Google Rich Snippets
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'JobPosting',
@@ -149,7 +147,6 @@ export default async function JobDetailPage({ params, searchParams }) {
 
   return (
     <main className="max-w-2xl mx-auto px-4 py-6">
-      {/* UPGRADE: Inject JSON-LD Schema */}
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       
       <Header />
@@ -169,7 +166,7 @@ export default async function JobDetailPage({ params, searchParams }) {
         </p>
         <h1 className="text-2xl font-extrabold text-gray-900 leading-tight">{post.title}</h1>
 
-        {/* UPGRADE: Verified Trust Signal Badge */}
+        {/* Verified Trust Signal Badge */}
         <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-green-50 px-3 py-1 text-xs font-semibold text-green-700 border border-green-200">
           <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
@@ -177,7 +174,37 @@ export default async function JobDetailPage({ params, searchParams }) {
           Verified from {post.category === 'mpesb' ? 'esb.mp.gov.in' : post.category === 'mppsc' ? 'mppsc.mp.gov.in' : 'Official Source'}
         </div>
 
-        <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-semibold uppercase tracking-wider text-gray-600">
+        {/* 🌟 NEW: KEY HIGHLIGHTS GRID 🌟 */}
+        {(post.total_vacancy || post.age_limit || post.application_fee_text || post.qualification) && (
+          <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {post.total_vacancy && (
+              <div className="bg-blue-50 p-3 rounded-lg border border-blue-100">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-blue-600">Total Vacancy</p>
+                <p className="text-sm font-semibold text-gray-900">{post.total_vacancy}</p>
+              </div>
+            )}
+            {post.age_limit && (
+              <div className="bg-green-50 p-3 rounded-lg border border-green-100">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-green-600">Age Limit</p>
+                <p className="text-sm font-semibold text-gray-900">{post.age_limit}</p>
+              </div>
+            )}
+            {post.application_fee_text && (
+              <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-100">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-yellow-700">Application Fee</p>
+                <p className="text-sm font-semibold text-gray-900">{post.application_fee_text}</p>
+              </div>
+            )}
+            {post.qualification && (
+              <div className="bg-purple-50 p-3 rounded-lg border border-purple-100">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-purple-600">Qualification</p>
+                <p className="text-sm font-semibold text-gray-900">{post.qualification}</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="mt-6 flex flex-wrap gap-2 text-[11px] font-semibold uppercase tracking-wider text-gray-600">
           {post.status && (
             <span className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1">
               Status: {post.status}
@@ -194,7 +221,6 @@ export default async function JobDetailPage({ params, searchParams }) {
           <p className="mt-3 text-sm leading-6 text-gray-700">{post.short_summary}</p>
         )}
 
-        {/* Your original detailed sections preserved */}
         <DetailsList title="Important dates" items={importantDates} />
         {Array.isArray(applicationFees) && applicationFees.length > 0 && (
           <DetailsList title="Application fee" items={applicationFees} />
@@ -244,7 +270,6 @@ export default async function JobDetailPage({ params, searchParams }) {
         </section>
       </article>
 
-      {/* UPGRADE: New Components for Retention */}
       <SimilarJobs currentCategory={post.category} currentSlug={post.slug} />
       <StickyTelegramButton />
 
