@@ -11,8 +11,8 @@ export default async function sitemap() {
   const jobUrls = (posts || []).map((post) => ({
     url: `${baseUrl}/job/${post.slug}`,
     lastModified: post.created_at,
-    changeFrequency: 'monthly',
-    priority: 0.7,
+    changeFrequency: 'weekly',
+    priority: 0.8,
   }));
 
   const staticRoutes = [

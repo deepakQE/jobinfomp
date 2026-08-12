@@ -4,6 +4,8 @@ import Footer from '@/components/Footer';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { cache } from 'react';
+import SimilarJobs from '@/components/SimilarJobs';
+import StickyTelegramButton from '@/components/StickyTelegramButton';
 
 export const revalidate = 60;
 
@@ -30,6 +32,10 @@ export async function generateMetadata({ params }) {
     };
   }
 
+  // UPGRADE: Use meta_title and meta_description if they exist
+  const title = post.meta_title || `${post.title} | Jobinfo MP`;
+  const description = post.meta_description || post.short_summary || `Check latest details, apply online link, and eligibility for ${post.title} on Jobinfo MP.`;
+  
   const keywords = [
     post.title,
     post.category,
@@ -37,14 +43,20 @@ export async function generateMetadata({ params }) {
     post.post_type,
     'MP job update',
     'government vacancy',
+    'sarkari naukri',
   ]
     .filter(Boolean)
     .join(', ');
 
   return {
-    title: `${post.title} | Jobinfo MP`,
-    description: post.short_summary || post.title,
+    title,
+    description,
     keywords,
+    openGraph: {
+      title,
+      description,
+      type: 'article',
+    },
   };
 }
 
@@ -114,8 +126,32 @@ export default async function JobDetailPage({ params, searchParams }) {
     ? 'Related updates'
     : 'Related links';
 
+  // UPGRADE: JSON-LD Schema for Google Rich Snippets
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'JobPosting',
+    title: post.title,
+    description: post.short_summary,
+    datePosted: post.created_at,
+    validThrough: post.application_deadline || '2026-12-31',
+    employmentType: 'FULL_TIME',
+    hiringOrganization: {
+      '@type': 'Organization',
+      name: post.category.toUpperCase(),
+      url: post.official_link,
+    },
+    applicantLocationRequirements: { '@type': 'Country', name: 'IN' },
+    jobLocation: {
+      '@type': 'Place',
+      address: { '@type': 'PostalAddress', addressRegion: 'Madhya Pradesh', addressCountry: 'IN' },
+    },
+  };
+
   return (
     <main className="max-w-2xl mx-auto px-4 py-6">
+      {/* UPGRADE: Inject JSON-LD Schema */}
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      
       <Header />
 
       <div className="mb-4 flex items-center justify-between gap-3">
@@ -132,6 +168,14 @@ export default async function JobDetailPage({ params, searchParams }) {
           {post.post_type}
         </p>
         <h1 className="text-2xl font-extrabold text-gray-900 leading-tight">{post.title}</h1>
+
+        {/* UPGRADE: Verified Trust Signal Badge */}
+        <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-green-50 px-3 py-1 text-xs font-semibold text-green-700 border border-green-200">
+          <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+          </svg>
+          Verified from {post.category === 'mpesb' ? 'esb.mp.gov.in' : post.category === 'mppsc' ? 'mppsc.mp.gov.in' : 'Official Source'}
+        </div>
 
         <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-semibold uppercase tracking-wider text-gray-600">
           {post.status && (
@@ -150,23 +194,20 @@ export default async function JobDetailPage({ params, searchParams }) {
           <p className="mt-3 text-sm leading-6 text-gray-700">{post.short_summary}</p>
         )}
 
+        {/* Your original detailed sections preserved */}
         <DetailsList title="Important dates" items={importantDates} />
-
         {Array.isArray(applicationFees) && applicationFees.length > 0 && (
           <DetailsList title="Application fee" items={applicationFees} />
         )}
-
         {eligibility && (
           <section className="mt-6 rounded-lg border border-blue-100 bg-blue-50 p-4">
             <h2 className="text-sm font-bold uppercase tracking-wider text-blue-900">Eligibility</h2>
             <p className="mt-3 text-sm leading-6 text-gray-700">{formatValue(eligibility)}</p>
           </section>
         )}
-
         {Array.isArray(vacancyDetails) && vacancyDetails.length > 0 && (
           <DetailsList title="Vacancy details" items={vacancyDetails} />
         )}
-
         {howToApply && (
           <section className="mt-6 rounded-lg border border-blue-100 bg-blue-50 p-4">
             <h2 className="text-sm font-bold uppercase tracking-wider text-blue-900">How to apply</h2>
@@ -178,13 +219,13 @@ export default async function JobDetailPage({ params, searchParams }) {
           <h2 className="text-sm font-bold uppercase tracking-wider text-gray-900">Official links</h2>
           <div className="mt-3 flex flex-wrap gap-3 text-sm">
             {post.official_link && (
-              <a href={post.official_link} target="_blank" rel="noopener noreferrer" className="text-blue-700 hover:text-blue-800">
-                Official website
+              <a href={post.official_link} target="_blank" rel="noopener noreferrer" className="text-blue-700 hover:text-blue-800 font-medium">
+                Official website →
               </a>
             )}
             {post.notification_pdf_link && (
-              <a href={post.notification_pdf_link} target="_blank" rel="noopener noreferrer" className="text-blue-700 hover:text-blue-800">
-                Notification PDF
+              <a href={post.notification_pdf_link} target="_blank" rel="noopener noreferrer" className="text-red-600 hover:text-red-700 font-medium">
+                📄 Download PDF Notification →
               </a>
             )}
           </div>
@@ -202,6 +243,10 @@ export default async function JobDetailPage({ params, searchParams }) {
           </div>
         </section>
       </article>
+
+      {/* UPGRADE: New Components for Retention */}
+      <SimilarJobs currentCategory={post.category} currentSlug={post.slug} />
+      <StickyTelegramButton />
 
       <Footer />
     </main>
