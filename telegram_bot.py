@@ -1,10 +1,16 @@
 import os
 import requests
+import json
+import re
 from bs4 import BeautifulSoup
 from datetime import datetime
 from supabase import create_client, Client
 from dotenv import load_dotenv
 import time
+import urllib3
+
+# Suppress SSL warnings since we use verify=False for government sites
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # 1. Force Python to load the .env file
 load_dotenv()
@@ -43,7 +49,7 @@ def scrape_mppsc():
     try:
         url = "https://mppsc.mp.gov.in/"
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
-        response = requests.get(url, headers=headers, timeout=15)
+        response = requests.get(url, headers=headers, timeout=15, verify=False)
         soup = BeautifulSoup(response.text, 'html.parser')
         
         for a_tag in soup.find_all('a', href=True):
@@ -66,7 +72,7 @@ def scrape_mpesb():
     try:
         url = "https://esb.mp.gov.in/e_default.html"
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
-        response = requests.get(url, headers=headers, timeout=15)
+        response = requests.get(url, headers=headers, timeout=15, verify=False)
         soup = BeautifulSoup(response.text, 'html.parser')
         
         for a_tag in soup.find_all('a', href=True):
@@ -86,7 +92,16 @@ def scrape_mpesb():
 
 def insert_job(title, pdf_link, official_link, category):
     """Formats and inserts clean, authentic data into Supabase"""
-    safe_title = title.lower().replace(' ', '-').replace('/', '-')[:80]
+    # 1. Create a clean, URL-safe slug (English letters and numbers only)
+    clean_title = re.sub(r'[^a-z0-9]+', '-', title.lower().strip())
+    clean_title = clean_title.strip('-')
+    
+    # If the title was entirely in Hindi, clean_title will be empty, so we use a fallback
+    if not clean_title:
+        clean_title = "latest-job-notification"
+        
+    # Limit slug length to keep URLs clean
+    safe_title = clean_title[:60]
     slug = f"{safe_title}-{int(time.time())}"
     
     job_data = {
@@ -95,10 +110,10 @@ def insert_job(title, pdf_link, official_link, category):
         'category': category,
         'post_type': 'latest-job',
         'short_summary': f'Official notification released for {title}. Candidates can apply online through the official portal.',
-        'important_dates': '[]',
-        'application_fee': '[]',
+        'important_dates': [],
+        'application_fee': [],
         'eligibility': 'Check official PDF notification for detailed eligibility criteria, age limit, and educational qualifications.',
-        'vacancy_details': '[]',
+        'vacancy_details': [],
         'how_to_apply': f'1. Visit the official website: {official_link}\n2. Read the detailed PDF notification carefully.\n3. Apply online through the official MPOnline or departmental portal before the last date.',
         'official_link': official_link,
         'notification_pdf_link': pdf_link,
@@ -117,10 +132,18 @@ def insert_job(title, pdf_link, official_link, category):
 
 def get_last_date(job):
     dates = job.get('important_dates') or []
+    # Handle case where it might be a JSON string from DB
+    if isinstance(dates, str):
+        try:
+            dates = json.loads(dates)
+        except:
+            dates = []
+            
     for date_row in dates:
-        label = str(date_row.get('label', '')).lower()
-        if 'last date' in label or 'deadline' in label:
-            return date_row.get('date', 'Not specified')
+        if isinstance(date_row, dict):
+            label = str(date_row.get('label', '')).lower()
+            if 'last date' in label or 'deadline' in label:
+                return date_row.get('date', 'Not specified')
     return 'Not specified'
 
 def trigger_telegram(job):
