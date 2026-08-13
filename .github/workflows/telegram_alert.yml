@@ -18,8 +18,8 @@ jobs:
           python-version: '3.11'
 
       - name: Install Dependencies
-        # UPGRADE: Added google-genai for AI summarization and duplicate checking
-        run: pip install supabase requests python-dotenv beautifulsoup4 google-genai
+        # UPGRADE: Using the stable, official google-generativeai library for AI summarization
+        run: pip install supabase requests python-dotenv beautifulsoup4 google-generativeai
 
       - name: Run Scraper & Telegram Bot
         env:
@@ -27,5 +27,5 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }} # MUST BE SERVICE ROLE KEY
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }} # NEW: Required for AI features
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }} # Required for AI features
         run: python telegram_bot.py
