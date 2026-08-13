@@ -10,7 +10,15 @@ from dotenv import load_dotenv
 import time
 import urllib3
 
-# Suppress SSL warnings since we use verify=False for government sites
+# Import Google GenAI (with safe fallback if not installed)
+try:
+    from google import genai
+    from google.genai import types
+    GEMINI_AVAILABLE = True
+except ImportError:
+    GEMINI_AVAILABLE = False
+
+# Suppress SSL warnings for government sites
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 load_dotenv()
@@ -19,10 +27,13 @@ TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_KEY = os.getenv('SUPABASE_KEY') # MUST BE SERVICE ROLE KEY
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 
-print("=== TELEGRAM & SCRAPER BOT START ===")
+print("=== TELEGRAM & AI SCRAPER BOT START ===")
 print(f"1. Token Loaded: {bool(TELEGRAM_BOT_TOKEN)}")
 print(f"2. Chat ID Loaded: {bool(TELEGRAM_CHAT_ID)}")
+print(f"3. Supabase URL: {SUPABASE_URL}")
+print(f"4. Gemini AI: {'Enabled' if GEMINI_AVAILABLE and GEMINI_API_KEY else 'Disabled (Using Smart Fallback)'}")
 print("====================================\n")
 
 if not all([TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, SUPABASE_URL, SUPABASE_KEY]):
@@ -30,17 +41,81 @@ if not all([TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, SUPABASE_URL, SUPABASE_KEY]):
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-def escape_html(text):
-    if not text: return ""
-    return html.escape(str(text), quote=False)
+# Initialize Gemini Client safely
+gemini_client = None
+if GEMINI_AVAILABLE and GEMINI_API_KEY:
+    try:
+        gemini_client = genai.Client(api_key=GEMINI_API_KEY)
+    except Exception as e:
+        print(f"⚠️ Gemini Init Failed (Will use fallback): {e}")
+
+def clean_text_for_match(text):
+    """Removes spaces, special chars, and lowers case for accurate duplicate checking (supports Hindi & English)"""
+    return re.sub(r'[^a-z0-9\u0900-\u097F]', '', str(text).lower())
 
 def check_if_exists(pdf_link, title):
+    """Advanced fuzzy duplicate checker"""
     if pdf_link:
         res = supabase.table('job_posts').select('slug').eq('notification_pdf_link', pdf_link).execute()
         if res.data: return True
-    search_term = title[:30].strip()
-    res = supabase.table('job_posts').select('slug').ilike('title', f'%{search_term}%').execute()
-    return len(res.data) > 0
+    
+    # Fuzzy match: Check if a very similar title exists in the last 50 jobs
+    clean_title = clean_text_for_match(title[:40])
+    res = supabase.table('job_posts').select('title, created_at').order('created_at', desc=True).limit(50).execute()
+    
+    for job in res.data:
+        if clean_text_for_match(job['title'][:40]) == clean_title:
+            return True # Duplicate found!
+    return False
+
+def get_ai_summary(title, category, description=""):
+    """Uses Gemini to intelligently categorize and summarize the notice"""
+    fallback_summary = f"Official notification released for {category}. Please check the PDF for detailed information."
+    
+    if not gemini_client:
+        return {"post_type": "latest-job", "summary": fallback_summary, "vacancy": "N/A", "deadline": "Not specified"}
+
+    prompt = f"""
+    You are an expert Indian government job portal assistant for 'Jobinfo MP'.
+    Analyze this notice:
+    - Title: {title}
+    - Category: {category}
+    - Context: {description}
+    
+    TASK:
+    1. Categorize as exactly one of: "latest-job", "result", "answer-key", "admit-card", or "notice-cancellation".
+    2. Write a short, accurate, 1-sentence English summary. If it's a cancellation/result, clearly state that. NEVER say "apply online" for a cancellation or result.
+    3. Extract vacancy count if it's a new job, else "N/A".
+    4. Extract deadline if mentioned, else "Not specified".
+    
+    Return ONLY valid JSON matching this schema:
+    {{
+      "post_type": "latest-job",
+      "summary": "Your 1-sentence summary here.",
+      "vacancy": "N/A or number",
+      "deadline": "Not specified or date"
+    }}
+    """
+    
+    try:
+        response = gemini_client.models.generate_content(
+            model="gemini-1.5-flash",
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                temperature=0.1,
+            ),
+        )
+        result = json.loads(response.text)
+        return {
+            "post_type": result.get("post_type", "latest-job"),
+            "summary": result.get("summary", fallback_summary),
+            "vacancy": result.get("vacancy", "N/A"),
+            "deadline": result.get("deadline", "Not specified")
+        }
+    except Exception as e:
+        print(f"⚠️ Gemini API failed (Rate limit or error), using smart fallback: {e}")
+        return {"post_type": "latest-job", "summary": fallback_summary, "vacancy": "N/A", "deadline": "Not specified"}
 
 def scrape_mppsc():
     print("🔍 Scraping MPPSC...")
@@ -80,110 +155,37 @@ def scrape_mpesb():
                     return
     except Exception as e: print(f"❌ MPESB Scraper Error: {e}")
 
-def scrape_mppolice():
-    print("🔍 Scraping MP Police...")
-    try:
-        url = "https://police.mp.gov.in/"
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
-        response = requests.get(url, headers=headers, timeout=15, verify=False)
-        soup = BeautifulSoup(response.text, 'html.parser')
-        for a_tag in soup.find_all('a', href=True):
-            href = a_tag['href'].lower()
-            if 'recruitment' in href or 'notification' in href or '.pdf' in href:
-                title = a_tag.text.strip()
-                if len(title) < 15: continue
-                pdf_link = a_tag['href'] if a_tag['href'].startswith('http') else "https://police.mp.gov.in" + a_tag['href']
-                if not check_if_exists(pdf_link, title):
-                    print(f"✅ Found New MP Police Job: {title}")
-                    insert_job(title, pdf_link, "https://police.mp.gov.in", "mp-police")
-                    return
-    except Exception as e: print(f"❌ MP Police Scraper Error: {e}")
-
-def scrape_mphc():
-    print("🔍 Scraping MP High Court...")
-    try:
-        url = "https://mphc.gov.in/"
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
-        response = requests.get(url, headers=headers, timeout=15, verify=False)
-        soup = BeautifulSoup(response.text, 'html.parser')
-        for a_tag in soup.find_all('a', href=True):
-            href = a_tag['href'].lower()
-            if 'recruitment' in href or 'advertisement' in href or '.pdf' in href:
-                title = a_tag.text.strip()
-                if len(title) < 15: continue
-                pdf_link = a_tag['href'] if a_tag['href'].startswith('http') else "https://mphc.gov.in" + a_tag['href']
-                if not check_if_exists(pdf_link, title):
-                    print(f"✅ Found New MP High Court Job: {title}")
-                    insert_job(title, pdf_link, "https://mphc.gov.in", "mp-high-court")
-                    return
-    except Exception as e: print(f"❌ MP High Court Scraper Error: {e}")
-
-def scrape_ssc():
-    print("🔍 Scraping SSC...")
-    try:
-        url = "https://ssc.gov.in/"
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
-        response = requests.get(url, headers=headers, timeout=15, verify=False)
-        soup = BeautifulSoup(response.text, 'html.parser')
-        for a_tag in soup.find_all('a', href=True):
-            href = a_tag['href'].lower()
-            if 'notice' in href or 'corrigendum' in href or '.pdf' in href:
-                title = a_tag.text.strip()
-                if len(title) < 15: continue
-                pdf_link = a_tag['href'] if a_tag['href'].startswith('http') else "https://ssc.gov.in" + a_tag['href']
-                if not check_if_exists(pdf_link, title):
-                    print(f"✅ Found New SSC Update: {title}")
-                    insert_job(title, pdf_link, "https://ssc.gov.in", "ssc")
-                    return
-    except Exception as e: print(f"❌ SSC Scraper Error: {e}")
-
-def scrape_rrb():
-    print("🔍 Scraping RRB...")
-    try:
-        url = "https://www.rrbcdg.gov.in/"
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
-        response = requests.get(url, headers=headers, timeout=15, verify=False)
-        soup = BeautifulSoup(response.text, 'html.parser')
-        for a_tag in soup.find_all('a', href=True):
-            href = a_tag['href'].lower()
-            if 'notice' in href or 'cen' in href or '.pdf' in href:
-                title = a_tag.text.strip()
-                if len(title) < 15: continue
-                pdf_link = a_tag['href'] if a_tag['href'].startswith('http') else "https://www.rrbcdg.gov.in/" + a_tag['href']
-                if not check_if_exists(pdf_link, title):
-                    print(f"✅ Found New RRB Update: {title}")
-                    insert_job(title, pdf_link, "https://www.rrbcdg.gov.in/", "railway")
-                    return
-    except Exception as e: print(f"❌ RRB Scraper Error: {e}")
-
 def insert_job(title, pdf_link, official_link, category):
     clean_title = re.sub(r'[^a-z0-9]+', '-', title.lower().strip()).strip('-')
     if not clean_title: clean_title = "latest-job-notification"
     safe_title = clean_title[:60]
     slug = f"{safe_title}-{int(time.time())}"
     
+    # 1. Get AI Summary & Categorization
+    ai_data = get_ai_summary(title, category)
+    
     job_data = {
         'slug': slug,
         'title': title,
         'category': category,
-        'post_type': 'latest-job',
-        'short_summary': f'Official notification released for {title}. Candidates can apply online through the official portal.',
-        # NEW KEY HIGHLIGHTS COLUMNS (Ready for manual/AI updates)
-        'total_vacancy': '',
-        'age_limit': '',
-        'application_fee_text': '',
-        'qualification': '',
+        'post_type': ai_data['post_type'], # AI determines if it's a result, cancellation, or new job
+        'short_summary': ai_data['summary'],
+        'total_vacancy': ai_data['vacancy'],
+        'application_deadline': ai_data['deadline'],
+        'age_limit': 'N/A',
+        'application_fee_text': 'N/A',
+        'qualification': 'Check PDF',
         'important_dates': [],
         'application_fee': [],
-        'eligibility': 'Check official PDF notification for detailed eligibility criteria, age limit, and educational qualifications.',
+        'eligibility': 'Check official PDF notification for detailed eligibility criteria.',
         'vacancy_details': [],
-        'how_to_apply': f'1. Visit the official website: {official_link}\n2. Read the detailed PDF notification carefully.\n3. Apply online through the official portal before the last date.',
+        'how_to_apply': f'1. Visit: {official_link}\n2. Read the PDF carefully.\n3. Apply through the official portal.',
         'official_link': official_link,
         'notification_pdf_link': pdf_link,
         'is_published': True,
         'telegram_posted': False,
-        'meta_title': f'{title} 2026 | Apply Online, PDF, Last Date - Jobinfo MP',
-        'meta_description': f'Download official PDF notification, check eligibility, and apply online for {title}. Verified source.'
+        'meta_title': f'{title} | Jobinfo MP',
+        'meta_description': ai_data['summary']
     }
     
     try:
@@ -193,40 +195,39 @@ def insert_job(title, pdf_link, official_link, category):
     except Exception as e:
         print(f"❌ Insert failed: {e}")
 
-def get_last_date(job):
-    dates = job.get('important_dates') or []
-    if isinstance(dates, str):
-        try: dates = json.loads(dates)
-        except: dates = []
-    for date_row in dates:
-        if isinstance(date_row, dict):
-            label = str(date_row.get('label', '')).lower()
-            if 'last date' in label or 'deadline' in label:
-                return date_row.get('date', 'Not specified')
-    return 'Not specified'
-
 def trigger_telegram(job):
     job_url = f"https://jobinfomp.netlify.app/job/{job['slug']}"
-    raw_date = get_last_date(job)
-    formatted_date = raw_date if raw_date != 'Not specified' else 'Not specified'
     
-    message = f"""<b>🚨 New Verified Job Update! 🚨</b>
+    # Use AI-generated summary, safely escaped for HTML
+    safe_summary = html.escape(job['short_summary'], quote=False)
+    safe_title = html.escape(job['title'], quote=False)
+    safe_category = html.escape(job['category'].upper(), quote=False)
+    safe_deadline = html.escape(str(job.get('application_deadline', 'Not specified')), quote=False)
+    safe_official = html.escape(job['official_link'], quote=False)
+    safe_pdf = html.escape(job['notification_pdf_link'], quote=False)
+    
+    message = f"""<b>🚨 New Verified Update! 🚨</b>
 
-📌 <b>{escape_html(job['title'])}</b>
-💼 <b>Category:</b> {escape_html(job['category'].upper())}
+📌 <b>{safe_title}</b>
+💼 <b>Category:</b> {safe_category}
 
-{escape_html(job['short_summary'])}
+{safe_summary}
 
-🗓 <b>Deadline:</b> {escape_html(formatted_date)}
+🗓 <b>Deadline:</b> {safe_deadline}
 
-🔗 <b>Official Website:</b> {escape_html(job['official_link'])}
-📄 <b>Download PDF:</b> {escape_html(job['notification_pdf_link'])}
+🔗 <b>Official Website:</b> <a href="{safe_official}">Click Here</a>
+📄 <b>Download PDF:</b> <a href="{safe_pdf}">Click Here</a>
 
 ✅ <b>Verified by Jobinfo MP</b>
-🔎 <b>View Details:</b> {escape_html(job_url)}
+🔎 <b>View Details:</b> <a href="{job_url}">Click Here</a>
 """
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    payload = {"chat_id": TELEGRAM_CHAT_ID, "text": message, "parse_mode": "HTML"}
+    payload = {
+        "chat_id": TELEGRAM_CHAT_ID, 
+        "text": message, 
+        "parse_mode": "HTML", 
+        "disable_web_page_preview": True
+    }
     
     try:
         print("📤 Sending message to Telegram...")
@@ -255,16 +256,10 @@ def check_and_post_existing_jobs():
 
 if __name__ == "__main__":
     print("🤖 ==========================================")
-    print("🤖 Starting Automated Authentic Scraper & Bot")
+    print("🤖 Starting Automated AI Scraper & Bot")
     print("🤖 ==========================================\n")
     
-    # Run all scrapers
     scrape_mppsc()
     scrape_mpesb()
-    scrape_mppolice()
-    scrape_mphc()
-    scrape_ssc()
-    scrape_rrb()
-    
     check_and_post_existing_jobs()
     print("✅ Scraper and Bot run complete.")
