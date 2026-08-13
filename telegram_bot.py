@@ -274,12 +274,15 @@ def trigger_telegram(job):
     job_url = f"https://jobinfomp.netlify.app/job/{job['slug']}"
     display_deadline = job.get('application_deadline') if job.get('application_deadline') else "Not specified"
     
-    safe_summary = html.escape(job['short_summary'], quote=False)
-    safe_title = html.escape(job['title'], quote=False)
-    safe_category = html.escape(job['category'].upper(), quote=False)
+    # FIX: Safely convert to string to prevent 'NoneType' errors with html.escape
+    safe_summary = html.escape(str(job.get('short_summary', '')), quote=False)
+    safe_title = html.escape(str(job.get('title', '')), quote=False)
+    safe_category = html.escape(str(job.get('category', '')).upper(), quote=False)
     safe_deadline = html.escape(str(display_deadline), quote=False)
-    safe_official = html.escape(job['official_link'], quote=False)
-    safe_pdf = html.escape(job['notification_pdf_link'], quote=False)
+    
+    # Provide fallback links if the database has None
+    safe_official = str(job.get('official_link') or "https://jobinfomp.netlify.app")
+    safe_pdf = str(job.get('notification_pdf_link') or "#")
     
     message = f"""<b>🚨 New Verified Update! 🚨</b>
 
