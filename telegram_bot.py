@@ -10,10 +10,9 @@ from dotenv import load_dotenv
 import time
 import urllib3
 
-# Import Google GenAI (with safe fallback if not installed)
+# Import the STABLE, official Google Generative AI library
 try:
-    from google import genai
-    from google.genai import types
+    import google.generativeai as genai
     GEMINI_AVAILABLE = True
 except ImportError:
     GEMINI_AVAILABLE = False
@@ -41,16 +40,24 @@ if not all([TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, SUPABASE_URL, SUPABASE_KEY]):
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# Initialize Gemini Client safely
-gemini_client = None
+# Initialize the STABLE Gemini Client
+gemini_model = None
 if GEMINI_AVAILABLE and GEMINI_API_KEY:
     try:
-        gemini_client = genai.Client(api_key=GEMINI_API_KEY)
+        genai.configure(api_key=GEMINI_API_KEY)
+        gemini_model = genai.GenerativeModel(
+            model_name="gemini-1.5-flash",
+            generation_config={
+                "response_mime_type": "application/json",
+                "temperature": 0.1,
+            }
+        )
+        print("✅ Gemini 1.5 Flash initialized successfully!")
     except Exception as e:
         print(f"⚠️ Gemini Init Failed (Will use fallback): {e}")
 
 def clean_text_for_match(text):
-    """Removes spaces, special chars, and lowers case for accurate duplicate checking (supports Hindi & English)"""
+    """Removes spaces, special chars, and lowers case for accurate duplicate checking"""
     return re.sub(r'[^a-z0-9\u0900-\u097F]', '', str(text).lower())
 
 def check_if_exists(pdf_link, title):
@@ -59,21 +66,19 @@ def check_if_exists(pdf_link, title):
         res = supabase.table('job_posts').select('slug').eq('notification_pdf_link', pdf_link).execute()
         if res.data: return True
     
-    # Fuzzy match: Check if a very similar title exists in the last 50 jobs
     clean_title = clean_text_for_match(title[:40])
     res = supabase.table('job_posts').select('title, created_at').order('created_at', desc=True).limit(50).execute()
     
     for job in res.data:
         if clean_text_for_match(job['title'][:40]) == clean_title:
-            return True # Duplicate found!
+            return True
     return False
 
 def get_ai_summary(title, category, description=""):
-    """Uses Gemini to intelligently categorize and summarize the notice"""
+    """Uses stable Gemini API to intelligently categorize and summarize the notice"""
     fallback_summary = f"Official notification released for {category}. Please check the PDF for detailed information."
     
-    if not gemini_client:
-        # Return None for deadline so Supabase accepts it as a NULL date
+    if not gemini_model:
         return {"post_type": "latest-job", "summary": fallback_summary, "vacancy": "N/A", "deadline": None}
 
     prompt = f"""
@@ -99,23 +104,16 @@ def get_ai_summary(title, category, description=""):
     """
     
     try:
-        response = gemini_client.models.generate_content(
-            model="gemini-1.5-flash", # UPDATED: Using the latest supported free-tier model
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                temperature=0.1,
-            ),
-        )
+        response = gemini_model.generate_content(prompt)
         result = json.loads(response.text)
         return {
             "post_type": result.get("post_type", "latest-job"),
             "summary": result.get("summary", fallback_summary),
             "vacancy": result.get("vacancy", "N/A"),
-            "deadline": result.get("deadline") # Will be None if null, which Supabase accepts
+            "deadline": result.get("deadline")
         }
     except Exception as e:
-        print(f"⚠️ Gemini API failed (Rate limit or error), using smart fallback: {e}")
+        print(f"⚠️ Gemini API failed, using smart fallback: {e}")
         return {"post_type": "latest-job", "summary": fallback_summary, "vacancy": "N/A", "deadline": None}
 
 def scrape_mppsc():
@@ -162,7 +160,6 @@ def insert_job(title, pdf_link, official_link, category):
     safe_title = clean_title[:60]
     slug = f"{safe_title}-{int(time.time())}"
     
-    # 1. Get AI Summary & Categorization
     ai_data = get_ai_summary(title, category)
     
     job_data = {
@@ -172,7 +169,7 @@ def insert_job(title, pdf_link, official_link, category):
         'post_type': ai_data['post_type'],
         'short_summary': ai_data['summary'],
         'total_vacancy': ai_data['vacancy'],
-        'application_deadline': ai_data['deadline'], # Now safely returns None instead of "Not specified"
+        'application_deadline': ai_data['deadline'],
         'age_limit': 'N/A',
         'application_fee_text': 'N/A',
         'qualification': 'Check PDF',
@@ -199,7 +196,6 @@ def insert_job(title, pdf_link, official_link, category):
 def trigger_telegram(job):
     job_url = f"https://jobinfomp.netlify.app/job/{job['slug']}"
     
-    # Format deadline safely for display
     display_deadline = job.get('application_deadline') if job.get('application_deadline') else "Not specified"
     
     safe_summary = html.escape(job['short_summary'], quote=False)
