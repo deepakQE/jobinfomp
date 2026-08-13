@@ -19,8 +19,7 @@ jobs:
 
       - name: Install Dependencies
         # UPGRADE: Using the stable, official google-generativeai library for AI summarization
-        run: pip install supabase requests python-dotenv beautifulsoup4 google-generativeai
-
+        run: pip install supabase requests python-dotenv beautifulsoup4 google-genai pypdf
       - name: Run Scraper & Telegram Bot
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
