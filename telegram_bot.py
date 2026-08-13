@@ -3,6 +3,7 @@ import requests
 import json
 import re
 import html
+import warnings
 from bs4 import BeautifulSoup
 from datetime import datetime
 from supabase import create_client, Client
@@ -10,7 +11,10 @@ from dotenv import load_dotenv
 import time
 import urllib3
 
-# Import the STABLE, official Google Generative AI library
+# Hide the Google Generative AI FutureWarning to keep logs clean
+warnings.filterwarnings("ignore", category=FutureWarning)
+
+# Import the stable Google Generative AI library
 try:
     import google.generativeai as genai
     GEMINI_AVAILABLE = True
@@ -57,11 +61,9 @@ if GEMINI_AVAILABLE and GEMINI_API_KEY:
         print(f"⚠️ Gemini Init Failed (Will use fallback): {e}")
 
 def clean_text_for_match(text):
-    """Removes spaces, special chars, and lowers case for accurate duplicate checking"""
     return re.sub(r'[^a-z0-9\u0900-\u097F]', '', str(text).lower())
 
 def check_if_exists(pdf_link, title):
-    """Advanced fuzzy duplicate checker"""
     if pdf_link:
         res = supabase.table('job_posts').select('slug').eq('notification_pdf_link', pdf_link).execute()
         if res.data: return True
@@ -75,7 +77,6 @@ def check_if_exists(pdf_link, title):
     return False
 
 def get_ai_summary(title, category, description=""):
-    """Uses stable Gemini API to intelligently categorize and summarize the notice"""
     fallback_summary = f"Official notification released for {category}. Please check the PDF for detailed information."
     
     if not gemini_model:
@@ -125,10 +126,10 @@ def scrape_mppsc():
         soup = BeautifulSoup(response.text, 'html.parser')
         for a_tag in soup.find_all('a', href=True):
             href = a_tag['href'].lower()
-            if 'advertisement' in href and '.pdf' in href:
+            if ('advertisement' in href or 'notification' in href) and href.endswith('.pdf'):
                 title = a_tag.text.strip()
-                if len(title) < 15: continue
-                pdf_link = a_tag['href'] if a_tag['href'].startswith('http') else "https://mppsc.mp.gov.in" + a_tag['href']
+                if len(title) < 10: continue
+                pdf_link = href if href.startswith('http') else "https://mppsc.mp.gov.in" + (href if href.startswith('/') else '/' + href)
                 if not check_if_exists(pdf_link, title):
                     print(f"✅ Found New MPPSC Job: {title}")
                     insert_job(title, pdf_link, "https://mppsc.mp.gov.in", "mppsc")
@@ -144,15 +145,91 @@ def scrape_mpesb():
         soup = BeautifulSoup(response.text, 'html.parser')
         for a_tag in soup.find_all('a', href=True):
             href = a_tag['href'].lower()
-            if 'rulebook' in href or 'advertisement' in href:
+            if ('rulebook' in href or 'advertisement' in href) and href.endswith('.pdf'):
                 title = a_tag.text.strip()
-                if len(title) < 20: continue
-                pdf_link = a_tag['href'] if a_tag['href'].startswith('http') else "https://esb.mp.gov.in" + a_tag['href']
+                if len(title) < 10: continue
+                pdf_link = href if href.startswith('http') else "https://esb.mp.gov.in" + (href if href.startswith('/') else '/' + href)
                 if not check_if_exists(pdf_link, title):
                     print(f"✅ Found New MPESB Job: {title}")
                     insert_job(title, pdf_link, "https://esb.mp.gov.in", "mpesb")
                     return
     except Exception as e: print(f"❌ MPESB Scraper Error: {e}")
+
+def scrape_mppolice():
+    print("🔍 Scraping MP Police...")
+    try:
+        url = "https://police.mp.gov.in/"
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+        response = requests.get(url, headers=headers, timeout=15, verify=False)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        for a_tag in soup.find_all('a', href=True):
+            href = a_tag['href'].lower()
+            if ('recruitment' in href or 'notification' in href) and href.endswith('.pdf'):
+                title = a_tag.text.strip()
+                if len(title) < 10: continue
+                pdf_link = href if href.startswith('http') else "https://police.mp.gov.in" + (href if href.startswith('/') else '/' + href)
+                if not check_if_exists(pdf_link, title):
+                    print(f"✅ Found New MP Police Job: {title}")
+                    insert_job(title, pdf_link, "https://police.mp.gov.in", "mp-police")
+                    return
+    except Exception as e: print(f"❌ MP Police Scraper Error (Likely blocked by firewall): {e}")
+
+def scrape_mphc():
+    print("🔍 Scraping MP High Court...")
+    try:
+        url = "https://mphc.gov.in/"
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+        response = requests.get(url, headers=headers, timeout=15, verify=False)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        for a_tag in soup.find_all('a', href=True):
+            href = a_tag['href'].lower()
+            if ('recruitment' in href or 'advertisement' in href) and href.endswith('.pdf'):
+                title = a_tag.text.strip()
+                if len(title) < 10: continue
+                pdf_link = href if href.startswith('http') else "https://mphc.gov.in" + (href if href.startswith('/') else '/' + href)
+                if not check_if_exists(pdf_link, title):
+                    print(f"✅ Found New MP High Court Job: {title}")
+                    insert_job(title, pdf_link, "https://mphc.gov.in", "mp-high-court")
+                    return
+    except Exception as e: print(f"❌ MP High Court Scraper Error (Likely blocked by firewall): {e}")
+
+def scrape_ssc():
+    print("🔍 Scraping SSC...")
+    try:
+        url = "https://ssc.gov.in/"
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+        response = requests.get(url, headers=headers, timeout=15, verify=False)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        for a_tag in soup.find_all('a', href=True):
+            href = a_tag['href'].lower()
+            if ('notice' in href or 'corrigendum' in href) and href.endswith('.pdf'):
+                title = a_tag.text.strip()
+                if len(title) < 10: continue
+                pdf_link = href if href.startswith('http') else "https://ssc.gov.in" + (href if href.startswith('/') else '/' + href)
+                if not check_if_exists(pdf_link, title):
+                    print(f"✅ Found New SSC Update: {title}")
+                    insert_job(title, pdf_link, "https://ssc.gov.in", "ssc")
+                    return
+    except Exception as e: print(f"❌ SSC Scraper Error: {e}")
+
+def scrape_rrb():
+    print("🔍 Scraping RRB...")
+    try:
+        url = "https://www.rrbcdg.gov.in/"
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+        response = requests.get(url, headers=headers, timeout=15, verify=False)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        for a_tag in soup.find_all('a', href=True):
+            href = a_tag['href'].lower()
+            if ('notice' in href or 'cen' in href) and href.endswith('.pdf'):
+                title = a_tag.text.strip()
+                if len(title) < 10: continue
+                pdf_link = href if href.startswith('http') else "https://www.rrbcdg.gov.in/" + (href if href.startswith('/') else '/' + href)
+                if not check_if_exists(pdf_link, title):
+                    print(f"✅ Found New RRB Update: {title}")
+                    insert_job(title, pdf_link, "https://www.rrbcdg.gov.in/", "railway")
+                    return
+    except Exception as e: print(f"❌ RRB Scraper Error (Likely blocked by firewall): {e}")
 
 def insert_job(title, pdf_link, official_link, category):
     clean_title = re.sub(r'[^a-z0-9]+', '-', title.lower().strip()).strip('-')
@@ -195,7 +272,6 @@ def insert_job(title, pdf_link, official_link, category):
 
 def trigger_telegram(job):
     job_url = f"https://jobinfomp.netlify.app/job/{job['slug']}"
-    
     display_deadline = job.get('application_deadline') if job.get('application_deadline') else "Not specified"
     
     safe_summary = html.escape(job['short_summary'], quote=False)
@@ -255,10 +331,16 @@ def check_and_post_existing_jobs():
 
 if __name__ == "__main__":
     print("🤖 ==========================================")
-    print("🤖 Starting Automated AI Scraper & Bot")
+    print("🤖 Starting Automated AI Scraper & Bot (6 Websites)")
     print("🤖 ==========================================\n")
     
+    # Run all 6 scrapers
     scrape_mppsc()
     scrape_mpesb()
+    scrape_mppolice()
+    scrape_mphc()
+    scrape_ssc()
+    scrape_rrb()
+    
     check_and_post_existing_jobs()
     print("✅ Scraper and Bot run complete.")
