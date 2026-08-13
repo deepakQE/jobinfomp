@@ -73,7 +73,8 @@ def get_ai_summary(title, category, description=""):
     fallback_summary = f"Official notification released for {category}. Please check the PDF for detailed information."
     
     if not gemini_client:
-        return {"post_type": "latest-job", "summary": fallback_summary, "vacancy": "N/A", "deadline": "Not specified"}
+        # Return None for deadline so Supabase accepts it as a NULL date
+        return {"post_type": "latest-job", "summary": fallback_summary, "vacancy": "N/A", "deadline": None}
 
     prompt = f"""
     You are an expert Indian government job portal assistant for 'Jobinfo MP'.
@@ -86,20 +87,20 @@ def get_ai_summary(title, category, description=""):
     1. Categorize as exactly one of: "latest-job", "result", "answer-key", "admit-card", or "notice-cancellation".
     2. Write a short, accurate, 1-sentence English summary. If it's a cancellation/result, clearly state that. NEVER say "apply online" for a cancellation or result.
     3. Extract vacancy count if it's a new job, else "N/A".
-    4. Extract deadline if mentioned, else "Not specified".
+    4. Extract deadline if mentioned. You MUST format it strictly as "YYYY-MM-DD" (e.g., "2026-09-03"). If no deadline is mentioned, return null.
     
     Return ONLY valid JSON matching this schema:
     {{
       "post_type": "latest-job",
       "summary": "Your 1-sentence summary here.",
       "vacancy": "N/A or number",
-      "deadline": "Not specified or date"
+      "deadline": null or "YYYY-MM-DD"
     }}
     """
     
     try:
         response = gemini_client.models.generate_content(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash", # UPDATED: Using the latest supported free-tier model
             contents=prompt,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
@@ -111,11 +112,11 @@ def get_ai_summary(title, category, description=""):
             "post_type": result.get("post_type", "latest-job"),
             "summary": result.get("summary", fallback_summary),
             "vacancy": result.get("vacancy", "N/A"),
-            "deadline": result.get("deadline", "Not specified")
+            "deadline": result.get("deadline") # Will be None if null, which Supabase accepts
         }
     except Exception as e:
         print(f"⚠️ Gemini API failed (Rate limit or error), using smart fallback: {e}")
-        return {"post_type": "latest-job", "summary": fallback_summary, "vacancy": "N/A", "deadline": "Not specified"}
+        return {"post_type": "latest-job", "summary": fallback_summary, "vacancy": "N/A", "deadline": None}
 
 def scrape_mppsc():
     print("🔍 Scraping MPPSC...")
@@ -168,10 +169,10 @@ def insert_job(title, pdf_link, official_link, category):
         'slug': slug,
         'title': title,
         'category': category,
-        'post_type': ai_data['post_type'], # AI determines if it's a result, cancellation, or new job
+        'post_type': ai_data['post_type'],
         'short_summary': ai_data['summary'],
         'total_vacancy': ai_data['vacancy'],
-        'application_deadline': ai_data['deadline'],
+        'application_deadline': ai_data['deadline'], # Now safely returns None instead of "Not specified"
         'age_limit': 'N/A',
         'application_fee_text': 'N/A',
         'qualification': 'Check PDF',
@@ -198,11 +199,13 @@ def insert_job(title, pdf_link, official_link, category):
 def trigger_telegram(job):
     job_url = f"https://jobinfomp.netlify.app/job/{job['slug']}"
     
-    # Use AI-generated summary, safely escaped for HTML
+    # Format deadline safely for display
+    display_deadline = job.get('application_deadline') if job.get('application_deadline') else "Not specified"
+    
     safe_summary = html.escape(job['short_summary'], quote=False)
     safe_title = html.escape(job['title'], quote=False)
     safe_category = html.escape(job['category'].upper(), quote=False)
-    safe_deadline = html.escape(str(job.get('application_deadline', 'Not specified')), quote=False)
+    safe_deadline = html.escape(str(display_deadline), quote=False)
     safe_official = html.escape(job['official_link'], quote=False)
     safe_pdf = html.escape(job['notification_pdf_link'], quote=False)
     
