@@ -68,7 +68,10 @@ TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_KEY = os.getenv('SUPABASE_KEY')  # MUST BE SERVICE ROLE KEY
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
-GEMINI_MODEL = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash')
+GEMINI_MODEL = os.getenv('GEMINI_MODEL', 'gemini-3.6-flash')
+# If the primary model gets retired/blocked again, these are tried in order
+# before giving up and falling back to the placeholder summary.
+GEMINI_FALLBACK_MODELS = ['gemini-3.5-flash', 'gemini-2.5-flash-lite']
 DEBUG = os.getenv('SCRAPER_DEBUG', 'false').lower() == 'true'
 
 print("=== TELEGRAM & AI SCRAPER BOT START ===")
@@ -168,20 +171,31 @@ def extract_pdf_excerpt(pdf_link, max_chars=6000, max_pages=3):
 def call_gemini(prompt):
     if not gemini_client:
         return None
-    for attempt in range(2):
-        try:
-            resp = gemini_client.models.generate_content(
-                model=GEMINI_MODEL,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    temperature=0.1,
-                ),
-            )
-            return resp.text
-        except Exception as e:
-            print(f"⚠️ Gemini call failed (attempt {attempt + 1}/2): {e}")
-            time.sleep(2)
+
+    models_to_try = [GEMINI_MODEL] + [m for m in GEMINI_FALLBACK_MODELS if m != GEMINI_MODEL]
+
+    for model_name in models_to_try:
+        for attempt in range(2):
+            try:
+                resp = gemini_client.models.generate_content(
+                    model=model_name,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json",
+                        temperature=0.1,
+                    ),
+                )
+                if model_name != GEMINI_MODEL:
+                    print(f"   ℹ️ Used fallback model '{model_name}' (primary '{GEMINI_MODEL}' unavailable)")
+                return resp.text
+            except Exception as e:
+                err_str = str(e)
+                print(f"⚠️ Gemini call failed ({model_name}, attempt {attempt + 1}/2): {e}")
+                # A retired/unavailable model won't succeed on retry - move to
+                # the next model in the list instead of wasting an attempt.
+                if '404' in err_str or 'NOT_FOUND' in err_str or 'no longer available' in err_str.lower():
+                    break
+                time.sleep(2)
     return None
 
 
@@ -196,6 +210,8 @@ def get_ai_summary(title, category, pdf_link=None):
         "application_fee_text": "N/A",
         "eligibility": "Check official PDF notification for detailed eligibility criteria.",
         "important_dates": [],
+        "application_fee": [],
+        "vacancy_details": [],
     }
 
     if not gemini_client:
@@ -227,6 +243,12 @@ that are not actually present in the excerpt.
 8. eligibility: 1-2 sentence eligibility summary.
 9. important_dates: JSON array of objects like {{"label": "Start Date", "date": "YYYY-MM-DD"}} for any
    dates mentioned (application start/end, exam date, etc). Empty array if none found.
+10. application_fee: JSON array of objects like {{"category": "General / Other State", "amount": "560"}},
+    one entry per fee category actually stated (General, SC/ST/OBC, PWD, Female, etc). Empty array if no
+    fee breakdown is given. Do not invent categories that aren't in the text.
+11. vacancy_details: JSON array of objects like {{"post": "Agriculture Extension Officer", "count": "2784"}},
+    one entry per distinct post/role with its vacancy count, if the notification breaks vacancies down by
+    post. Empty array if only a single total is given (use `vacancy` for that case instead).
 
 Return ONLY valid JSON matching this schema, with no preamble or markdown fences:
 {{
@@ -238,7 +260,9 @@ Return ONLY valid JSON matching this schema, with no preamble or markdown fences
   "age_limit": "...",
   "application_fee_text": "...",
   "eligibility": "...",
-  "important_dates": []
+  "important_dates": [],
+  "application_fee": [],
+  "vacancy_details": []
 }}"""
 
     raw = call_gemini(prompt)
@@ -266,6 +290,14 @@ Return ONLY valid JSON matching this schema, with no preamble or markdown fences
     if not isinstance(important_dates, list):
         important_dates = []
 
+    application_fee = result.get("application_fee")
+    if not isinstance(application_fee, list):
+        application_fee = []
+
+    vacancy_details = result.get("vacancy_details")
+    if not isinstance(vacancy_details, list):
+        vacancy_details = []
+
     return {
         "post_type": result.get("post_type") or fallback["post_type"],
         "summary": result.get("summary") or fallback["summary"],
@@ -276,6 +308,8 @@ Return ONLY valid JSON matching this schema, with no preamble or markdown fences
         "application_fee_text": result.get("application_fee_text") or fallback["application_fee_text"],
         "eligibility": result.get("eligibility") or fallback["eligibility"],
         "important_dates": important_dates,
+        "application_fee": application_fee,
+        "vacancy_details": vacancy_details,
     }
 
 
@@ -417,9 +451,9 @@ def insert_job(title, pdf_link, official_link, category):
         'application_fee_text': ai_data['application_fee_text'],
         'qualification': ai_data['qualification'],
         'important_dates': ai_data['important_dates'],
-        'application_fee': [],
+        'application_fee': ai_data['application_fee'],
         'eligibility': ai_data['eligibility'],
-        'vacancy_details': [],
+        'vacancy_details': ai_data['vacancy_details'],
         'how_to_apply': f'1. Visit: {official_link}\n2. Read the PDF carefully.\n3. Apply through the official portal.',
         'official_link': official_link,
         'notification_pdf_link': pdf_link,
