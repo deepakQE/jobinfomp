@@ -9,6 +9,30 @@ import StickyTelegramButton from '@/components/StickyTelegramButton';
 
 export const revalidate = 60;
 
+// Set this to your real production domain (or read from env so it works
+// the same in dev/staging/prod without editing code).
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://jobinfomp.netlify.app';
+
+// Maps your internal category codes to the real organization name Google
+// expects for JobPosting's hiringOrganization.name - using the raw
+// category ("MPPSC") there instead of the real name is technically valid
+// but weaker for rich-result trust/matching. Extend this as you add
+// categories.
+const ORG_NAMES = {
+  mppsc: 'Madhya Pradesh Public Service Commission',
+  mpesb: 'Madhya Pradesh Employees Selection Board',
+  'mp-police': 'Madhya Pradesh Police',
+  railway: 'Railway Recruitment Board',
+  ssc: 'Staff Selection Commission',
+  bank: 'Banking Recruitment Board',
+};
+
+// Only these post types are genuine job postings - results, admit cards,
+// and answer keys are NOT job postings and should never carry JobPosting
+// structured data (Google can flag inapplicable/incorrect structured
+// data, which risks your real job-posting pages too).
+const JOB_POSTING_TYPES = new Set(['latest-job', 'upcoming-job']);
+
 const getJobPost = cache(async (slug) => {
   const { data, error } = await supabase
     .from('job_posts')
@@ -17,6 +41,7 @@ const getJobPost = cache(async (slug) => {
     .eq('is_published', true)
     .single();
 
+  if (error) console.error('getJobPost error for slug:', slug, error);
   if (error || !data) return null;
   return data;
 });
@@ -34,7 +59,13 @@ export async function generateMetadata({ params }) {
 
   const title = post.meta_title || `${post.title} | Jobinfo MP`;
   const description = post.meta_description || post.short_summary || `Check latest details, apply online link, and eligibility for ${post.title} on Jobinfo MP.`;
-  
+  const pageUrl = `${SITE_URL}/job/${post.slug}`;
+  // Falls back to a generic branded image if the post has no specific one.
+  // Add an /og-default.png (1200x630) to your /public folder if you don't
+  // have one yet - without it this will 404 and social previews will be
+  // blank.
+  const ogImage = post.og_image || `${SITE_URL}/og-default.png`;
+
   const keywords = [
     post.title,
     post.category,
@@ -51,10 +82,22 @@ export async function generateMetadata({ params }) {
     title,
     description,
     keywords,
+    alternates: {
+      canonical: pageUrl,
+    },
     openGraph: {
       title,
       description,
       type: 'article',
+      url: pageUrl,
+      siteName: 'Jobinfo MP',
+      images: [{ url: ogImage, width: 1200, height: 630 }],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: [ogImage],
     },
   };
 }
@@ -125,30 +168,39 @@ export default async function JobDetailPage({ params, searchParams }) {
     ? 'Related updates'
     : 'Related links';
 
-  const jsonLd = {
-    '@context': 'https://schema.org',
-    '@type': 'JobPosting',
-    title: post.title,
-    description: post.short_summary,
-    datePosted: post.created_at,
-    validThrough: post.application_deadline || '2026-12-31',
-    employmentType: 'FULL_TIME',
-    hiringOrganization: {
-      '@type': 'Organization',
-      name: post.category.toUpperCase(),
-      url: post.official_link,
-    },
-    applicantLocationRequirements: { '@type': 'Country', name: 'IN' },
-    jobLocation: {
-      '@type': 'Place',
-      address: { '@type': 'PostalAddress', addressRegion: 'Madhya Pradesh', addressCountry: 'IN' },
-    },
-  };
+  // Only emit JobPosting schema for actual job postings - never for
+  // results/admit-cards/answer-keys, and only include validThrough when
+  // there's a real deadline (a fabricated far-future date does more harm
+  // than good for structured-data trust).
+  const isRealJobPosting = JOB_POSTING_TYPES.has(post.post_type);
+  const jsonLd = isRealJobPosting
+    ? {
+        '@context': 'https://schema.org',
+        '@type': 'JobPosting',
+        title: post.title,
+        description: post.short_summary,
+        datePosted: post.created_at,
+        ...(post.application_deadline ? { validThrough: post.application_deadline } : {}),
+        employmentType: 'FULL_TIME',
+        hiringOrganization: {
+          '@type': 'Organization',
+          name: ORG_NAMES[post.category?.toLowerCase()] || post.category?.toUpperCase(),
+          url: post.official_link,
+        },
+        applicantLocationRequirements: { '@type': 'Country', name: 'IN' },
+        jobLocation: {
+          '@type': 'Place',
+          address: { '@type': 'PostalAddress', addressRegion: 'Madhya Pradesh', addressCountry: 'IN' },
+        },
+      }
+    : null;
 
   return (
     <main className="max-w-2xl mx-auto px-4 py-6">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-      
+      {jsonLd && (
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      )}
+
       <Header />
 
       <div className="mb-4 flex items-center justify-between gap-3">
@@ -174,8 +226,10 @@ export default async function JobDetailPage({ params, searchParams }) {
           Verified from {post.category === 'mpesb' ? 'esb.mp.gov.in' : post.category === 'mppsc' ? 'mppsc.mp.gov.in' : 'Official Source'}
         </div>
 
-        {/* 🌟 NEW: KEY HIGHLIGHTS GRID 🌟 */}
-        {(post.total_vacancy || post.age_limit || post.application_fee_text || post.qualification) && (
+        {/* Only show this grid for actual job postings - on result/admit-card/
+            answer-key pages these fields are never meaningful and just show
+            four "N/A" boxes, wasting space on mobile where it matters most. */}
+        {isRealJobPosting && (post.total_vacancy || post.age_limit || post.application_fee_text || post.qualification) && (
           <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
             {post.total_vacancy && (
               <div className="bg-blue-50 p-3 rounded-lg border border-blue-100">
