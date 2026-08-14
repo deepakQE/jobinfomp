@@ -125,6 +125,39 @@ def clean_text_for_match(text):
     return re.sub(r'[^a-z0-9\u0900-\u097F]', '', str(text).lower())
 
 
+# Generic words that appear in almost every MPPSC/MPESB title and carry no
+# distinguishing signal - excluded before comparing titles, so dedup
+# compares the words that actually identify WHICH job this is.
+TITLE_STOPWORDS = {
+    'recruitment', 'advertisement', 'advt', 'no', 'notification', 'exam',
+    'examination', 'dated', 'the', 'for', 'of', 'and', 'to', 'a', 'an',
+    'mppsc', 'mpesb', 'post', 'posts', 'department', 'government', 'madhya',
+    'pradesh', 'notice', 'regarding', 'sambandhi', 'suchna',
+}
+
+
+def title_token_set(title):
+    """Lowercases, strips punctuation, and drops stopwords/plain numbers-
+    with-slashes so two differently-worded titles about the same job (e.g.
+    'Recruitment Advertisement for Internal Accounts Examiner Officer Exam
+    2026' vs 'MPPSC Internal Accounts Examiner Officer Recruitment 2026')
+    still overlap heavily on the words that actually matter."""
+    words = re.findall(r'[a-z0-9\u0900-\u097F]+', str(title).lower())
+    return {w for w in words if w not in TITLE_STOPWORDS and len(w) > 2}
+
+
+def titles_are_similar(title_a, title_b, threshold=0.8):
+    set_a, set_b = title_token_set(title_a), title_token_set(title_b)
+    if not set_a or not set_b:
+        return False
+    overlap = len(set_a & set_b)
+    smaller = min(len(set_a), len(set_b))
+    # Ratio against the SMALLER set, not the union - a short precise title
+    # ("MPESB Krishi Vistar Adhikari") fully contained in a longer one
+    # should still count as a strong match even though the union is large.
+    return (overlap / smaller) >= threshold
+
+
 def check_if_exists(pdf_link, title):
     if pdf_link:
         res = supabase.table('job_posts').select('slug').eq('notification_pdf_link', pdf_link).execute()
@@ -137,6 +170,15 @@ def check_if_exists(pdf_link, title):
     for job in res.data:
         if clean_text_for_match(job['title'][:40]) == clean_title:
             return True
+
+    # Fallback: differently-worded titles for the same underlying job
+    # (common with manually-seeded rows, or sites that rephrase notices).
+    # Checked last since it's the most expensive/approximate of the three.
+    for job in res.data:
+        if titles_are_similar(title, job['title']):
+            print(f"   ℹ️ Skipping likely duplicate (title similarity): \"{title[:60]}\" ~ \"{job['title'][:60]}\"")
+            return True
+
     return False
 
 
