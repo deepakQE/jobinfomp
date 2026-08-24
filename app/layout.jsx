@@ -14,7 +14,7 @@ export const metadata = {
     'Sarkari result MP',
   ],
   verification: {
-    google: '6XdbSFySiQCE3JxXZJ9WtM15G3Vl7Ej6XrMJ9Rlge8M',
+    google: '3SHWAfPdpGoxmz6I0RADAixxHUEUBAO172yeGoaEHp4',
     
   },
 };
