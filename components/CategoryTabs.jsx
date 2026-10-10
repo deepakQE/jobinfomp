@@ -35,3 +35,4 @@ export default function CategoryTabs({ active = 'all', showLabel = true }) {
     </nav>
   );
 }
+
