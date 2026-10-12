@@ -1,0 +1,6 @@
+.sections { display: grid; gap: 48px; }
+.section { min-width: 0; }
+.heading { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 4px; }
+.heading h2 { color: var(--color-text); font-size: 24px; }
+.heading a { color: var(--color-accent); font-size: 14px; font-weight: 600; text-decoration: none; }
+.heading a:hover { text-decoration: underline; }

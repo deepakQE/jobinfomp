@@ -1,0 +1,4 @@
+.page { width: min(calc(100% - (var(--space-page) * 2)), 720px); margin-inline: auto; padding-block: 64px; }
+.page h1 { font-size: 36px; }
+.page p { margin-top: 16px; color: var(--color-secondary); font-size: 16px; line-height: 28px; }
+.page a { color: var(--color-accent); }

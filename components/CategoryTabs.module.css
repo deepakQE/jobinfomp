@@ -1,0 +1,12 @@
+.wrapper { margin-top: 28px; }
+.chips { display: flex; align-items: center; gap: 12px; }
+.label { flex: 0 0 auto; color: var(--color-secondary); font-size: 13px; font-weight: 500; }
+.scroll { position: relative; display: flex; min-width: 0; flex: 1; gap: 8px; overflow-x: auto; padding: 2px 0 6px; scrollbar-width: none; }
+.scroll::-webkit-scrollbar { display: none; }
+.scroll::before, .scroll::after { position: sticky; top: 0; z-index: 1; width: 24px; flex: 0 0 24px; content: ''; pointer-events: none; }
+.scroll::before { left: 0; background: linear-gradient(90deg, var(--color-background), transparent); }
+.scroll::after { right: 0; background: linear-gradient(270deg, var(--color-background), transparent); }
+.chip { flex: 0 0 auto; border: 1px solid var(--color-border); border-radius: var(--radius-pill); color: var(--color-secondary); font-size: 13px; font-weight: 500; padding: 8px 14px; text-decoration: none; white-space: nowrap; }
+.chip:hover { border-color: var(--color-accent); color: var(--color-accent); }
+.active { border-color: var(--color-accent); background: var(--color-accent); color: var(--color-on-accent); }
+@media (max-width: 640px) { .chips { align-items: flex-start; flex-direction: column; gap: 8px; } .scroll { width: 100%; } }

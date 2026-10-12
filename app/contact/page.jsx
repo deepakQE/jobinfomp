@@ -1,10 +1,14 @@
-export const metadata = { title: 'Contact us | Jobinfo MP' };
+import ContactForm from '@/components/ContactForm';
+import styles from './page.module.css';
+
+export const metadata = { title: 'Contact us | Jobinfo MP', description: 'Contact Jobinfo MP about corrections, feedback, or questions.' };
 
 export default function Contact() {
   return (
-    <main className="max-w-2xl mx-auto px-4 py-6 text-primary">
-      <h1 className="text-lg font-semibold mb-4">Contact us</h1>
-      <p className="text-sm text-slate">For corrections, feedback, or queries, reach us at: your-email@jobinfomp.in</p>
+    <main className={styles.page}>
+      <h1>Contact us</h1>
+      <p>For corrections, feedback, or queries, send a message below or email <a href="mailto:contact@jobinfomp.in">contact@jobinfomp.in</a>.</p>
+      <ContactForm />
     </main>
   );
 }

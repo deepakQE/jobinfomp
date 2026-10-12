@@ -1,0 +1,22 @@
+.header { position: sticky; top: 0; z-index: var(--z-header); background: var(--color-surface); border-bottom: 1px solid var(--color-border); }
+.headerInner { display: flex; min-height: 64px; align-items: center; gap: 20px; }
+.logo { flex: 0 0 auto; color: var(--color-text); font-size: 18px; font-weight: 600; letter-spacing: -0.02em; text-decoration: none; }
+.desktopNav { display: flex; min-width: 0; flex: 1; align-items: center; gap: 20px; }
+.desktopNav a, .mobileNav a { color: var(--color-secondary); font-size: 14px; font-weight: 500; text-decoration: none; }
+.desktopNav a:hover, .mobileNav a:hover { color: var(--color-accent); }
+.headerSearch, .mobileSearch { display: flex; align-items: center; gap: 8px; }
+.headerSearch { width: min(100%, 280px); color: var(--color-secondary); }
+.headerSearch input, .mobileSearch input { min-width: 0; width: 100%; border: 1px solid var(--color-border); border-radius: var(--radius-control); background: var(--color-surface); color: var(--color-text); padding: 8px 12px; }
+.headerSearch input { padding-left: 0; border: 0; outline: 0; }
+.iconButton { display: inline-flex; width: 36px; height: 36px; flex: 0 0 auto; align-items: center; justify-content: center; border: 1px solid var(--color-border); border-radius: var(--radius-control); background: var(--color-surface); color: var(--color-text); cursor: pointer; }
+.iconButton:hover { border-color: var(--color-accent); color: var(--color-accent); }
+.menuButton { display: none; }
+.mobileSearchButton { display: none; text-decoration: none; }
+.homeSearchHidden { display: none; }
+.drawer { border-top: 1px solid var(--color-border); background: var(--color-surface); }
+.mobileSearch { padding-block: 16px; }
+.mobileSearch input { flex: 1; }
+.mobileNav { display: grid; padding-bottom: 16px; }
+.mobileNav a { border-bottom: 1px solid var(--color-border); padding: 12px 0; color: var(--color-text); }
+@media (max-width: 1024px) { .desktopNav { gap: 12px; } }
+@media (max-width: 768px) { .desktopNav, .headerSearch { display: none; } .mobileSearchButton, .menuButton { display: inline-flex; } }

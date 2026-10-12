@@ -1,15 +1,6 @@
-﻿export default function Footer() {
-  return (
-    <footer className="mt-12 bg-ink-navy text-primary">
-      <div className="container-editorial py-8">
-        <p className="text-xs leading-relaxed text-hero-muted font-mono">
-          Jobinfo MP is an independent job notification aggregator. Not affiliated with any government body or official department. 
-          All information is compiled from official notifications for reference only. Always verify details on the official website before applying.
-        </p>
-        <p className="text-xs mt-4 text-hero-muted">
-          © 2024 Jobinfo MP. All rights reserved.
-        </p>
-      </div>
-    </footer>
-  );
+import Container from '@/components/ui/Container';
+import styles from './Footer.module.css';
+
+export default function Footer() {
+  return <footer className={styles.footer}><Container className={styles.grid}><div><p className={styles.name}>Jobinfo MP</p><p className={styles.copy}>Independent summaries of government job notifications. Always verify dates and eligibility on the official website before applying.</p></div><nav aria-label="Footer links" className={styles.links}><a href="/about">About</a><a href="/contact">Contact</a><a href="/privacy">Privacy</a></nav><nav aria-label="Legal links" className={styles.links}><a href="/terms">Terms</a><a href="/disclaimer">Disclaimer</a><a href="/report-error">Report an error</a></nav></Container><div className={styles.copyright}><Container>© 2026 Jobinfo MP</Container></div></footer>;
 }

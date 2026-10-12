@@ -1,0 +1,4 @@
+.badge { display: inline-flex; align-items: center; border-radius: var(--radius-pill); padding: 3px 8px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+.open { background: color-mix(in srgb, var(--color-open) 12%, transparent); color: var(--color-open); }
+.closing { background: color-mix(in srgb, var(--color-closing) 14%, transparent); color: var(--color-closing); }
+.closed { background: color-mix(in srgb, var(--color-closed) 12%, transparent); color: var(--color-closed); }

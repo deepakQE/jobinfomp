@@ -1,0 +1,8 @@
+.page { padding-block: 40px 64px; }
+.page h1 { font-size: 36px; }
+.intro { margin-top: 12px; color: var(--color-secondary); font-size: 16px; }
+.empty { border-block: 1px solid var(--color-border); margin-top: 40px; padding-block: 48px; }
+.empty h2 { font-size: 20px; }
+.empty p { margin-top: 8px; color: var(--color-secondary); font-size: 14px; }
+.empty a { display: inline-block; margin-top: 20px; font-size: 14px; text-decoration: none; }
+.rows { margin-top: 32px; }

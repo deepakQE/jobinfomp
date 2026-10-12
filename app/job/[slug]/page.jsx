@@ -1,192 +1,27 @@
-import { supabase } from '@/lib/supabase';
+import Link from 'next/link';
+import { notFound } from 'next/navigation';
+import { headers } from 'next/headers';
+import { cache } from 'react';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
-import { notFound } from 'next/navigation';
-import { cache } from 'react';
+import JobActions from '@/components/jobs/JobActions';
+import JobRow from '@/components/JobRow';
+import Container from '@/components/ui/Container';
+import Button from '@/components/ui/Button';
+import Badge from '@/components/ui/Badge';
+import { supabase } from '@/lib/supabase';
+import { cleanText, formatDate, formatOrganization, formatVacancies, getDeadline, getPostTypeLabel, getStatus, parseJsonArray } from '@/lib/format';
+import styles from './page.module.css';
 
-// FORCE INSTANT LIVE FETCHING - NO STATIC CACHING
 export const dynamic = 'force-dynamic';
-
-const getJobPost = cache(async (slug) => {
-  return supabase
-    .from('job_posts')
-    .select('*')
-    .eq('slug', slug)
-    .eq('is_published', true)
-    .single();
-});
-
-export async function generateMetadata({ params }) {
-  const { slug } = await params;
-  const { data: post } = await getJobPost(slug);
-
-  if (!post) return { title: 'Job not found | Jobinfo MP' };
-
-  return {
-    title: `${post.title} | Jobinfo MP`,
-    description: post.short_summary || 'Latest MP government job notification, eligibility, vacancy, and apply online details.',
-    alternates: { canonical: `https://jobinfomp.netlify.app/job/${slug}` },
-  };
-}
-
+const getJobPost = cache(async (slug) => supabase.from('job_posts').select('*').eq('slug', slug).eq('is_published', true).single());
+export async function generateMetadata({ params }) { const { slug } = await params; const { data: post } = await getJobPost(slug); if (!post) return { title: 'Job not found | Jobinfo MP' }; return { title: `${post.title} | Jobinfo MP`, description: post.short_summary || `Details for ${post.title}.`, alternates: { canonical: `/job/${slug}` } }; }
+function DetailTable({ rows }) { return rows.length > 0 ? <dl className={styles.table}>{rows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl> : null; }
 export default async function JobPage({ params }) {
-  const { slug } = await params;
-  const { data: post } = await getJobPost(slug);
-
-  if (!post) return notFound();
-
-  // Robust JSON parser that handles both raw arrays and stringified JSON
-  const parseJson = (field) => {
-    if (!field) return [];
-    if (typeof field === 'string') {
-      try { return JSON.parse(field); } catch {
-        return [];
-      }
-    }
-    return Array.isArray(field) ? field : [];
-  };
-
-  const dates = parseJson(post.important_dates);
-  const fees = parseJson(post.application_fee);
-  const vacancies = parseJson(post.vacancy_details);
-
-  return (
-    <>
-      <Header />
-      <main className="max-w-2xl mx-auto px-4 py-6">
-      
-      <div className="mb-8">
-        <h1 className="text-2xl font-black text-primary mb-3 leading-tight">{post.title}</h1>
-        {post.short_summary && (
-          <p className="text-sm text-slate bg-notice p-4 rounded-lg border border-notice-border leading-relaxed">
-            {post.short_summary}
-          </p>
-        )}
-      </div>
-
-      {dates.length > 0 && (
-        <section className="mb-8">
-          <h2 className="text-sm font-extrabold text-primary mb-3 uppercase tracking-wider flex items-center gap-2">
-             <span className="w-2 h-2 bg-blue-600 rounded-full"></span>
-             Important Dates
-          </h2>
-          <div className="overflow-hidden border hairline-border rounded-lg">
-            <table className="w-full text-sm text-left">
-              <tbody className="divide-y divide-hairline">
-                {dates.map((row, i) => (
-                  <tr key={i} className="bg-card-bg hover:bg-card-hover transition-colors">
-                    <td className="p-3 text-slate">{row.label}</td>
-                    <td className="p-3 text-right text-primary font-semibold">{row.date}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
-
-      {fees.length > 0 && (
-        <section className="mb-8">
-          <h2 className="text-sm font-extrabold text-primary mb-3 uppercase tracking-wider flex items-center gap-2">
-             <span className="w-2 h-2 bg-green-600 rounded-full"></span>
-             Application Fee
-          </h2>
-          <div className="overflow-hidden border hairline-border rounded-lg">
-            <table className="w-full text-sm text-left">
-              <tbody className="divide-y divide-hairline">
-                {fees.map((row, i) => (
-                  <tr key={i} className="bg-card-bg hover:bg-card-hover transition-colors">
-                    <td className="p-3 text-slate">{row.category}</td>
-                    <td className="p-3 text-right text-primary font-semibold">{row.fee}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
-
-      {post.eligibility && (
-        <section className="mb-8">
-          <h2 className="text-sm font-extrabold text-primary mb-3 uppercase tracking-wider">Eligibility</h2>
-          <div className="text-sm text-slate whitespace-pre-line bg-card-bg p-4 rounded-lg border hairline-border leading-relaxed">
-            {post.eligibility}
-          </div>
-        </section>
-      )}
-
-      {vacancies.length > 0 && (
-        <section className="mb-8">
-          <h2 className="text-sm font-extrabold text-primary mb-3 uppercase tracking-wider">Vacancy Breakdown</h2>
-          <div className="overflow-hidden border hairline-border rounded-lg">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-card-hover border-b hairline-border text-slate font-semibold uppercase text-xs tracking-wider">
-                <tr>
-                  <th className="p-3">Post Name</th>
-                  <th className="p-3 text-right">Count</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-hairline">
-                {vacancies.map((row, i) => (
-                  <tr key={i} className="bg-card-bg hover:bg-card-hover transition-colors">
-                    <td className="p-3 text-slate">{row.post_name}</td>
-                    <td className="p-3 text-right text-primary font-bold">{row.count}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
-
-      {post.how_to_apply && (
-        <section className="mb-8">
-          <h2 className="text-sm font-extrabold text-primary mb-3 uppercase tracking-wider">How to Apply</h2>
-          <div className="text-sm text-slate whitespace-pre-line bg-card-bg p-4 rounded-lg border hairline-border leading-relaxed">
-            {post.how_to_apply}
-          </div>
-        </section>
-      )}
-
-      <div className="flex flex-col gap-3 mb-8">
-        {post.official_link && (
-          <a href={post.official_link} target="_blank" rel="noopener noreferrer"
-             className="text-sm text-center font-bold tracking-wide bg-action hover:bg-action-hover text-action-contrast rounded-lg py-3.5 transition-colors">
-            Apply Online / Official Website
-          </a>
-        )}
-        {post.notification_pdf_link && (
-          <a href={post.notification_pdf_link} target="_blank" rel="noopener noreferrer"
-             className="text-sm text-center font-semibold tracking-wide border-2 border-hairline bg-card-bg hover:bg-card-hover rounded-lg py-3 text-primary transition-all">
-            Download Notification PDF
-          </a>
-        )}
-      </div>
-
-      <Footer />
-
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify({
-            '@context': 'https://schema.org/',
-            '@type': 'JobPosting',
-            title: post.title,
-            description: post.eligibility || post.short_summary || post.title,
-            datePosted: post.created_at,
-            validThrough: dates.find((d) =>
-              d.label.toLowerCase().includes('last date')
-            )?.date || undefined,
-            employmentType: 'FULL_TIME',
-            hiringOrganization: { '@type': 'Organization', name: post.category?.toUpperCase() || 'Government of Madhya Pradesh' },
-            jobLocation: {
-              '@type': 'Place',
-              address: { '@type': 'PostalAddress', addressRegion: 'Madhya Pradesh', addressCountry: 'IN' },
-            },
-          }),
-        }}
-      />
-      </main>
-    </>
-  );
+  const { slug } = await params; const { data: post } = await getJobPost(slug); if (!post) return notFound(); const dates = parseJsonArray(post.important_dates).filter((item) => cleanText(item?.date) && cleanText(item?.label)); const fees = parseJsonArray(post.application_fee).filter((item) => cleanText(item?.fee) && cleanText(item?.category)); const vacancies = parseJsonArray(post.vacancy_details).filter((item) => cleanText(item?.post_name) && item?.count !== null && item?.count !== undefined); const status = getStatus(post);
+  const nonce = (await headers()).get('x-nonce') || undefined;
+  const facts = [['Organization', formatOrganization(post.category)], ['Vacancies', formatVacancies(post.total_vacancy)], ['Posted', formatDate(post.created_at)], ['Last date', formatDate(getDeadline(post))], ['Age limit', cleanText(post.age_limit)], ['Qualification', cleanText(post.qualification)], ['Application fee', cleanText(post.application_fee_text)]].filter(([, value]) => value);
+  const { data: related } = await supabase.from('job_posts').select('*').eq('is_published', true).eq('category', post.category).neq('slug', post.slug).order('created_at', { ascending: false }).limit(4);
+  const jsonLd = JSON.stringify({ '@context': 'https://schema.org', '@type': 'Article', headline: post.title, datePublished: post.created_at, dateModified: post.updated_at || post.created_at, description: post.short_summary || post.title }).replace(/</g, '\\u003c');
+  return <><Header /><main id="main-content"><Container className={styles.page}><nav aria-label="Breadcrumb" className={styles.breadcrumb}><Link href="/">Home</Link><span>/</span><Link href={`/category/${encodeURIComponent(String(post.category || '').toLowerCase())}`}>{formatOrganization(post.category) || 'Updates'}</Link><span>/</span><span>Details</span></nav><div className={styles.layout}><article><div className={styles.typeLine}><Badge tone={status.tone}>{status.label}</Badge><span>{getPostTypeLabel(post.post_type)}</span></div><h1>{post.title}</h1>{post.short_summary && <p className={styles.summary}>{post.short_summary}</p>}<div className={styles.actions}><JobActions slug={post.slug} title={post.title} /></div><section><h2>Key facts</h2><DetailTable rows={facts} /></section>{dates.length > 0 && <section><h2>Important dates</h2><DetailTable rows={dates.map((item) => [item.label, item.date])} /></section>}{vacancies.length > 0 && <section><h2>Vacancy breakdown</h2><DetailTable rows={vacancies.map((item) => [item.post_name, String(item.count)])} /></section>}{fees.length > 0 && <section><h2>Application fee</h2><DetailTable rows={fees.map((item) => [item.category, item.fee])} /></section>}<section><h2>Eligibility</h2><p className={styles.copy}>{cleanText(post.eligibility) || 'Read the official notification for eligibility requirements.'}</p>{!cleanText(post.eligibility) && post.notification_pdf_link && <a href={post.notification_pdf_link} target="_blank" rel="noreferrer"><Button>Read official notification</Button></a>}</section>{cleanText(post.how_to_apply) && <section><h2>How to apply</h2><p className={styles.copy}>{post.how_to_apply}</p></section>}<p className={styles.updated}>Last updated {formatDate(post.updated_at || post.created_at)}. Source: official notification linked above.</p></article><aside className={styles.aside}><h2>Official links</h2>{post.official_link && <a href={post.official_link} target="_blank" rel="noreferrer"><Button>Official website</Button></a>}{post.notification_pdf_link && <a href={post.notification_pdf_link} target="_blank" rel="noreferrer"><Button variant="secondary">Notification PDF</Button></a>}</aside></div>{related?.length > 0 && <section className={styles.related}><h2>Related updates</h2>{related.map((item) => <JobRow key={item.slug} post={item} />)}</section>}</Container></main><Footer /><script nonce={nonce} type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd }} /></>;
 }

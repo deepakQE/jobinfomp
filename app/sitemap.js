@@ -16,7 +16,7 @@ export default async function sitemap() {
   }));
 
   const staticRoutes = [
-    '', 
+    '', '/search', '/about', '/contact', '/privacy', '/terms', '/disclaimer', '/saved',
     '/category/mpesb',
     '/category/mppsc',
     '/category/mp-police',

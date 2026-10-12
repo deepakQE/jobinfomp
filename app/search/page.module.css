@@ -1,0 +1,18 @@
+.page { padding-block: 40px 64px; }
+.eyebrow { color: var(--color-secondary); font-size: 14px; font-weight: 600; }
+.page h1 { margin-top: 12px; font-size: 36px; }
+.search { display: flex; max-width: 720px; gap: 8px; margin-top: 24px; }
+.inputWrap { display: flex; min-width: 0; flex: 1; align-items: center; gap: 8px; border: 1px solid var(--color-border); border-radius: var(--radius-control); color: var(--color-secondary); padding: 0 12px; }
+.inputWrap input { min-width: 0; width: 100%; border: 0; outline: 0; background: transparent; color: var(--color-text); padding: 12px 0; }
+.resultHeading { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin-top: 40px; border-bottom: 1px solid var(--color-border); padding-bottom: 12px; }
+.resultHeading h2 { font-size: 24px; }
+.resultHeading p { margin-top: 4px; color: var(--color-secondary); font-size: 14px; }
+.quickFilters { display: flex; gap: 16px; font-size: 14px; }
+.quickFilters a { text-decoration: none; }
+.error { margin-top: 24px; color: var(--color-closed); font-size: 14px; }
+.empty { border-bottom: 1px solid var(--color-border); padding-block: 48px; }
+.empty h3 { font-size: 18px; }
+.empty p { margin-top: 8px; color: var(--color-secondary); font-size: 14px; }
+.pagination { display: flex; justify-content: space-between; border-top: 1px solid var(--color-border); margin-top: 32px; padding-top: 16px; color: var(--color-secondary); font-size: 14px; }
+.pagination div { display: flex; gap: 16px; }
+@media (max-width: 640px) { .page h1 { font-size: 30px; } .resultHeading { align-items: start; flex-direction: column; } .quickFilters { flex-wrap: wrap; } }

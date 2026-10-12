@@ -1,45 +1,36 @@
-﻿import { Fraunces, Inter, IBM_Plex_Mono } from 'next/font/google';
+import { Inter, Noto_Sans_Devanagari } from 'next/font/google';
+import { headers } from 'next/headers';
 import './globals.css';
 import ThemeProvider from '@/components/ThemeProvider';
 
-const fraunces = Fraunces({
-  subsets: ['latin'],
-  variable: '--font-display',
-  display: 'swap',
-});
-
 const inter = Inter({
   subsets: ['latin'],
-  variable: '--font-body',
+  variable: '--font-inter',
   display: 'swap',
 });
 
-const ibmPlexMono = IBM_Plex_Mono({
-  weight: ['400', '600'],
-  variable: '--font-plex-mono',
+const notoSansDevanagari = Noto_Sans_Devanagari({
+  subsets: ['devanagari'],
+  variable: '--font-devanagari',
   display: 'swap',
-  subsets: ['latin'],
 });
 
 export const metadata = {
-  title: 'Jobinfo MP - Latest Govt Job Notifications',
-  description: 'Latest MP Police, MPESB, MPPSC, Railway, and SSC job notifications, admit cards, and results.',
-  verification: {
-    google: '6XdbSFySiQCE3JxXZJ9WtM15G3Vl7Ej6XrMJ9Rlge8M',
-    
-  },
+  metadataBase: new URL('https://jobinfomp.netlify.app'),
+  title: 'Jobinfo MP - Latest Government Job Updates',
+  description: 'Government job notifications, admit cards, results, and answer keys from official sources.',
+  alternates: { canonical: '/' },
+  verification: { google: '6XdbSFySiQCE3JxXZJ9WtM15G3Vl7Ej6XrMJ9Rlge8M' },
 };
 
-export default function RootLayout({ children }) {
+export const dynamic = 'force-dynamic';
+
+export default async function RootLayout({ children }) {
+  const nonce = (await headers()).get('x-nonce') || undefined;
   return (
-    <html
-      lang="en"
-      suppressHydrationWarning
-      data-scroll-behavior="smooth"
-      className={`${fraunces.variable} ${inter.variable} ${ibmPlexMono.variable}`}
-    >
-      <body className="bg-bg text-primary antialiased">
-        <ThemeProvider>{children}</ThemeProvider>
+    <html lang="en" suppressHydrationWarning className={`${inter.variable} ${notoSansDevanagari.variable}`}>
+      <body>
+        <ThemeProvider nonce={nonce}>{children}</ThemeProvider>
       </body>
     </html>
   );

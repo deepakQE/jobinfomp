@@ -1,0 +1,5 @@
+.page { min-height: 100vh; padding-block: 32px; }
+.heading { width: 60%; height: 48px; }
+.subheading { width: 40%; height: 28px; margin-top: 24px; }
+.rows { margin-top: 48px; }
+.row { height: 72px; border-bottom: 1px solid var(--color-border); }

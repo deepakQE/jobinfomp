@@ -1,15 +1,5 @@
-export default function Loading() {
-  return (
-    <main className="min-h-screen">
-      <div className="container-editorial py-4">
-        <div className="h-20 rounded-card bg-card-bg border hairline-border mb-6 animate-pulse" />
-        <div className="h-28 rounded-card bg-ink-navy mb-6 animate-pulse" />
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, index) => (
-            <div key={index} className="h-48 rounded-card bg-card-bg border hairline-border animate-pulse" />
-          ))}
-        </div>
-      </div>
-    </main>
-  );
-}
+import Container from '@/components/ui/Container';
+import Skeleton from '@/components/ui/Skeleton';
+import styles from './loading.module.css';
+
+export default function Loading() { return <main className={styles.page}><Container><Skeleton className={styles.heading} /><Skeleton className={styles.search} /><div className={styles.rows}>{Array.from({ length: 8 }).map((_, index) => <Skeleton key={index} className={styles.row} />)}</div></Container></main>; }

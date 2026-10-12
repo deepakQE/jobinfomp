@@ -1,6 +1,8 @@
 import os
+import argparse
+import calendar
 import requests
-from datetime import datetime
+from datetime import date, datetime
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
@@ -20,6 +22,20 @@ if not all([TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, SUPABASE_URL, SUPABASE_KEY]):
 # Initialize Supabase client
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+def publication_date(job):
+    raw_date = job.get('notification_date') or job.get('published_at') or job.get('publish_date') or job.get('created_at')
+    return datetime.fromisoformat(str(raw_date).replace('Z', '+00:00')).date()
+
+def is_recent(job, today=None):
+    today = today or date.today()
+    month = today.month - 6
+    year = today.year
+    if month <= 0:
+        month += 12
+        year -= 1
+    cutoff = date(year, month, min(today.day, calendar.monthrange(year, month)[1]))
+    return publication_date(job) >= cutoff
+
 def fetch_latest_job():
     try:
         # Pull the latest job that is published AND has NOT been posted to Telegram yet
@@ -28,12 +44,13 @@ def fetch_latest_job():
             .eq('is_published', True) \
             .eq('telegram_posted', False) \
             .order('created_at', desc=True) \
-            .limit(1) \
+            .limit(25) \
             .execute()
-        
-        if not response.data:
-            return None
-        return response.data[0]
+        for job in response.data or []:
+            if is_recent(job):
+                return job
+            print(f"Skipping archive job: {job.get('slug')} ({publication_date(job).isoformat()})")
+        return None
     except Exception as e:
         print(f"Database Fetch Error: {str(e)}")
         return None
@@ -88,8 +105,14 @@ def send_telegram_alert(job):
         print(f"Network Timeout/Error contacting Telegram: {str(e)}")
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Send the newest recent job alert.")
+    parser.add_argument('--dry-run', action='store_true', help='Print the job that would be sent without calling Telegram or updating Supabase.')
+    args = parser.parse_args()
     latest_job = fetch_latest_job()
     if latest_job:
-        send_telegram_alert(latest_job)
+        if args.dry_run:
+            print(f"Dry run: would send {latest_job['slug']} ({publication_date(latest_job).isoformat()})")
+        else:
+            send_telegram_alert(latest_job)
     else:
         print("No active jobs found to post.")
